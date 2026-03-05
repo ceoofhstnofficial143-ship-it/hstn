@@ -1,0 +1,139 @@
+import { supabase } from './supabase'
+
+// Event logging utility for Marketplace Intelligence Layer
+export class Analytics {
+    static async logProductView(userId: string, productId: string, sellerId: string) {
+        try {
+            await supabase.rpc('log_product_view', {
+                p_user_id: userId,
+                p_product_id: productId,
+                p_seller_id: sellerId
+            })
+        } catch (error) {
+            console.error('Failed to log product view:', error)
+        }
+    }
+
+    static async logVideoPlay(userId: string, productId: string, sellerId: string) {
+        try {
+            await supabase.rpc('log_video_play', {
+                p_user_id: userId,
+                p_product_id: productId,
+                p_seller_id: sellerId
+            })
+        } catch (error) {
+            console.error('Failed to log video play:', error)
+        }
+    }
+
+    static async logWishlistAdd(userId: string, productId: string, sellerId: string) {
+        try {
+            await supabase.rpc('log_wishlist_add', {
+                p_user_id: userId,
+                p_product_id: productId,
+                p_seller_id: sellerId
+            })
+        } catch (error) {
+            console.error('Failed to log wishlist add:', error)
+        }
+    }
+
+    static async logAddToCart(userId: string, productId: string, sellerId: string) {
+        try {
+            await supabase.rpc('log_add_to_cart', {
+                p_user_id: userId,
+                p_product_id: productId,
+                p_seller_id: sellerId
+            })
+        } catch (error) {
+            console.error('Failed to log add to cart:', error)
+        }
+    }
+
+    static async logCheckoutStart(userId: string) {
+        try {
+            await supabase.rpc('log_checkout_start', {
+                p_user_id: userId
+            })
+        } catch (error) {
+            console.error('Failed to log checkout start:', error)
+        }
+    }
+
+    static async logCheckoutComplete(userId: string, orderId: string) {
+        try {
+            await supabase.rpc('log_checkout_complete', {
+                p_user_id: userId,
+                p_order_id: orderId
+            })
+        } catch (error) {
+            console.error('Failed to log checkout complete:', error)
+        }
+    }
+
+    static async logUploadCreated(sellerId: string, productId: string) {
+        try {
+            await supabase.rpc('log_upload_created', {
+                p_seller_id: sellerId,
+                p_product_id: productId
+            })
+        } catch (error) {
+            console.error('Failed to log upload created:', error)
+        }
+    }
+
+    static async logUploadApproved(sellerId: string, productId: string) {
+        try {
+            await supabase.rpc('log_upload_approved', {
+                p_seller_id: sellerId,
+                p_product_id: productId
+            })
+        } catch (error) {
+            console.error('Failed to log upload approved:', error)
+        }
+    }
+
+    static async logQuestCompleted(sellerId: string, questType: string) {
+        try {
+            await supabase.rpc('log_quest_completed', {
+                p_seller_id: sellerId,
+                p_quest_type: questType
+            })
+        } catch (error) {
+            console.error('Failed to log quest completed:', error)
+        }
+    }
+
+    static async logFeedView(userId: string) {
+        try {
+            await supabase.rpc('log_marketplace_event', {
+                p_event_type: 'feed_view',
+                p_user_id: userId
+            })
+        } catch (error) {
+            console.error('Failed to log feed view:', error)
+        }
+    }
+
+    // Refresh analytics data
+    static async refreshAnalytics() {
+        try {
+            await supabase.rpc('refresh_all_analytics')
+        } catch (error) {
+            console.error('Failed to refresh analytics:', error)
+        }
+    }
+
+    // Get product heat score
+    static async getProductHeatScore(productId: string): Promise<number> {
+        try {
+            const { data } = await supabase.rpc('calculate_product_heat_score', {
+                p_product_id: productId
+            })
+            return data || 0
+        } catch (error) {
+            console.error('Failed to get product heat score:', error)
+            return 0
+        }
+    }
+}

@@ -1,0 +1,263 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Colors - Light (Ivory/Charcoal/Gold) */
+  --background: #FCFBF7;
+  /* Ivory / Off-white */
+  --foreground: #1A1A1A;
+  /* Charcoal */
+  --card: #FFFFFF;
+  --card-foreground: #1A1A1A;
+  --primary: #C5A059;
+  /* Soft Gold */
+  --primary-foreground: #FFFFFF;
+  --accent: #D4AF37;
+  /* Muted Gold for accents */
+  --muted: #8E8E93;
+  --border: #E8E8E1;
+
+  /* Typography Scale (Section 1) */
+  --font-display: 4.5rem;
+  /* 72px */
+  --font-h1: 2.75rem;
+  /* 44px */
+  --font-h2: 1.875rem;
+  /* 30px */
+  --font-h3: 1.25rem;
+  /* 20px */
+  --font-body: 0.9375rem;
+  /* 15px */
+  --font-caption: 0.75rem;
+  /* 12px */
+
+  /* Layout Rules (Section 1) */
+  --radius-luxury: 40px;
+  --max-content: 1440px;
+  --spacing-8pt: 8px;
+  --spacing-section: 120px;
+
+  /* Motion System (Section 8) */
+  --duration-smooth: 400ms;
+  --ease-luxury: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Mobile Overrides (Responsive Foundations) */
+@media (max-width: 768px) {
+  :root {
+    --font-display: 2.25rem;
+    /* 36px on mobile */
+    --font-h1: 1.75rem;
+    /* 28px on mobile */
+    --font-h2: 1.5rem;
+    /* 24px on mobile */
+    --font-h3: 1.125rem;
+    /* 18px on mobile */
+    --spacing-section: 48px;
+  }
+}
+
+.dark {
+  --background: #111111;
+  --foreground: #F4F4F5;
+  --card: #1A1A1A;
+  --card-foreground: #F4F4F5;
+  --primary: #D4AF37;
+  /* Muted Gold */
+  --primary-foreground: #111111;
+  --accent: #27272A;
+  --muted: #A1A1AA;
+  --border: #27272A;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+
+  --radius-luxury: var(--radius-luxury);
+
+  --spacing-section: 80px;
+  --spacing-8pt: 8px;
+
+  @keyframes light-sweep {
+    0% {
+      transform: translateX(-100%) skewX(-15deg);
+    }
+
+    100% {
+      transform: translateX(200%) skewX(-15deg);
+    }
+  }
+
+  @keyframes pulse-slow {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes gold-glow {
+
+    0%,
+    100% {
+      box-shadow: 0 0 5px rgba(197, 160, 89, 0.2);
+    }
+
+    50% {
+      box-shadow: 0 0 20px rgba(197, 160, 89, 0.4);
+    }
+  }
+
+  --animate-fade-in: fade-in 1s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  --animate-light-sweep: light-sweep 2s ease-in-out infinite;
+  --animate-pulse-slow: pulse-slow 3s ease-in-out infinite;
+  --animate-gold-glow: gold-glow 4s ease-in-out infinite;
+}
+
+@utility animate-scan {
+  animation: scan 3s linear infinite;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.7;
+}
+
+/* Custom Typography Utilities */
+.text-display {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: var(--font-display);
+  line-height: 1.05;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+
+.text-h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: var(--font-h1);
+  line-height: 1.1;
+  font-weight: 400;
+}
+
+.text-h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: var(--font-h2);
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+.text-h3 {
+  font-family: 'Inter', sans-serif;
+  font-size: var(--font-h3);
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.text-body {
+  font-size: var(--font-body);
+  font-weight: 300;
+  color: rgba(26, 26, 26, 0.8);
+}
+
+.text-caption {
+  font-size: var(--font-caption);
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  font-weight: 500;
+}
+
+@utility transition-smooth {
+  transition: all var(--duration-smooth) var(--ease-luxury);
+}
+
+@utility hover-lift {
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  }
+}
+
+@utility button-press {
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+
+@layer components {
+  .section-container {
+    max-width: var(--max-content);
+    margin: 0 auto;
+    padding: 0 16px;
+
+    @media (min-width: 768px) {
+      padding: 0 24px;
+    }
+  }
+
+  .luxury-card {
+    background: var(--card);
+    border-radius: var(--radius-luxury);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    @apply transition-smooth;
+  }
+
+  .luxury-button {
+    @apply px-10 py-5 rounded-full font-bold transition-smooth button-press relative overflow-hidden;
+    background: linear-gradient(135deg, #C5A059 0%, #D4AF37 100%);
+    color: white;
+    box-shadow: 0 10px 20px rgba(197, 160, 89, 0.2);
+
+    &:hover {
+      box-shadow: 0 15px 30px rgba(197, 160, 89, 0.4);
+      transform: translateY(-2px);
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 40px;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateX(-100%) skewX(-15deg);
+    }
+
+    &:hover::after {
+      animation: light-sweep 1s ease-in-out;
+    }
+  }
+}

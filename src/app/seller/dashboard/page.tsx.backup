@@ -1,0 +1,322 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase"
+import Link from "next/link"
+import { getTrustTier } from "@/lib/trustTier"
+import SellerAnalyticsPanel from "./analytics"
+import SimpleSellerRequests from "@/components/SimpleSellerRequests"
+
+export default function SellerDashboard() {
+    const [orders, setOrders] = useState<any[]>([])
+    const [products, setProducts] = useState<any[]>([])
+    const [stats, setStats] = useState({ totalRevenue: 0, pendingOrders: 0, trustScore: 0 })
+    const [loading, setLoading] = useState(true)
+    const [user, setUser] = useState<any>(null)
+    const [confirmingOrder, setConfirmingOrder] = useState<any>(null)
+    const [confirmedSKU, setConfirmedSKU] = useState(false)
+    const [confirmedSpecs, setConfirmedSpecs] = useState(false)
+
+    useEffect(() => {
+        const fetchSellerData = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                setLoading(false)
+                return
+            }
+            setUser(user)
+
+            // Get seller trust score
+            const { data: trustData } = await supabase
+                .from("trust_scores")
+                .select("score")
+                .eq("user_id", user.id)
+                .single()
+
+            // Get seller products
+            const { data: productsData } = await supabase
+                .from("products")
+                .select("*")
+                .eq("user_id", user.id)
+
+            if (productsData) {
+                setProducts(productsData)
+                const productIds = productsData.map(p => p.id)
+
+                // Get orders for those products
+                const { data: ordersData } = await supabase
+                    .from("orders")
+                    .select(`
+                        *,
+                        products (*)
+                    `)
+                    .in("product_id", productIds)
+                    .order("created_at", { ascending: false })
+
+                if (ordersData) {
+                    setOrders(ordersData)
+                    const revenue = ordersData.reduce((acc, curr) => acc + (curr.products?.price || 0), 0)
+                    const pending = ordersData.filter(o => o.status !== "delivered").length
+                    setStats({
+                        totalRevenue: revenue,
+                        pendingOrders: pending,
+                        trustScore: trustData?.score || 0
+                    })
+                }
+            }
+            setLoading(false)
+        }
+
+        fetchSellerData()
+    }, [])
+
+    const updateOrderStatus = async (orderId: string, newStatus: string) => {
+        if (newStatus === "shipped") {
+            const order = orders.find(o => o.id === orderId)
+            setConfirmingOrder(order)
+            return
+        }
+        await executeStatusUpdate(orderId, newStatus)
+    }
+
+    const executeStatusUpdate = async (orderId: string, newStatus: string) => {
+        const { error } = await supabase
+            .from("orders")
+            .update({ status: newStatus })
+            .eq("id", orderId)
+
+        if (error) {
+            alert("Protocol Error: Status synchronization failed.")
+        } else {
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
+            if (newStatus === "delivered") {
+                setStats(prev => ({
+                    ...prev,
+                    pendingOrders: Math.max(0, prev.pendingOrders - 1)
+                }))
+            }
+            setConfirmingOrder(null)
+            setConfirmedSKU(false)
+            setConfirmedSpecs(false)
+        }
+    }
+
+    if (loading) return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+            <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+        </div>
+    )
+
+    if (!user) return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+            <h2 className="text-h2 mb-4">Please Login to Access Dashboard</h2>
+            <Link href="/login" className="luxury-button">Login Now</Link>
+        </div>
+    )
+
+    const currentTier = getTrustTier(stats.trustScore)
+    let nextTierMax = 150;
+    let nextTierName = "Elite Seller";
+    let nextTierIcon = "🔵";
+    let nextTierBenefits = [
+        "🔵 Elite Seller Badge",
+        "Instant Auto-Approvals",
+        "+40 Ranking Boost",
+        "Priority Feed Exposure",
+        "Instant Escrow Release"
+    ];
+
+    if (stats.trustScore < 50) {
+        nextTierMax = 50;
+        nextTierName = "Verified Seller";
+        nextTierIcon = "🟢";
+        nextTierBenefits = [
+            "🟢 Verified Seller Badge",
+            "Dispute Protection",
+            "+10 Ranking Boost",
+            "Discovery Feed Access",
+            "Standard Escrow Release"
+        ];
+    } else if (stats.trustScore < 100) {
+        nextTierMax = 100;
+        nextTierName = "Gold Seller";
+        nextTierIcon = "🟡";
+        nextTierBenefits = [
+            "🟡 Gold Seller Badge",
+            "Priority Admin Queue",
+            "+25 Ranking Boost",
+            "Algorithmic Feed Exposure",
+            "Faster Escrow Release"
+        ];
+    } else if (stats.trustScore < 150) {
+        nextTierMax = 150;
+        nextTierName = "Elite Seller";
+        nextTierIcon = "🔵";
+        nextTierBenefits = [
+            "🔵 Elite Seller Badge",
+            "Instant Auto-Approvals",
+            "+40 Ranking Boost",
+            "Priority Feed Exposure",
+            "Instant Escrow Release"
+        ];
+    }
+
+    const htpGap = Math.max(0, nextTierMax - stats.trustScore);
+    const progressPercent = Math.min(100, Math.floor((stats.trustScore / nextTierMax) * 100));
+
+    return (
+        <main className="bg-background min-h-screen animate-fade-in py-20">
+            <div className="section-container">
+                <header className="mb-12 sm:mb-16 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6">
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-caption uppercase tracking-widest text-primary font-bold">Seller Intelligence</span>
+                            {stats.trustScore < 50 && (
+                                <span className="bg-red-500/10 text-red-500 border border-red-500/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">
+                                    Trust Penalty Active ⚠️
+                                </span>
+                            )}
+                        </div>
+                        <h1 className="text-display mt-2 italic">Executive Dashboard</h1>
+                    </div>
+                    {stats.trustScore < 50 ? (
+                        <div className="flex flex-col items-end">
+                            <Link href="/upload" className="luxury-button !text-xs !py-3 !px-8 w-full sm:w-auto text-center !bg-foreground !text-background opacity-80 cursor-not-allowed pointer-events-none">
+                                    </p>
+                                </div>
+                                                        }`}>
+                                                        {order.status || 'Processing'}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted font-mono">#{order.id.slice(0, 6)}</span>
+                                                </div>
+                                                <h4 className="text-body font-bold">{prod.title}</h4>
+                                                <p className="text-caption text-muted mt-1">{order.full_name} • {order.city}</p>
+
+                                                <div className="mt-4 flex gap-3">
+                                                    {order.status !== 'shipped' && order.status !== 'delivered' && (
+                                                        <button
+                                                            onClick={() => updateOrderStatus(order.id, 'shipped')}
+                                                            className="text-[9px] uppercase tracking-widest font-bold px-3 py-1.5 bg-primary/10 text-primary rounded-full hover:bg-primary hover:text-white transition-smooth"
+                                                        >
+                                                            Mark as Shipped
+                                                        </button>
+                                                    )}
+                                                    {order.status === 'shipped' && (
+                                                        <button
+                                                            onClick={() => updateOrderStatus(order.id, 'delivered')}
+                                                            className="text-[9px] uppercase tracking-widest font-bold px-3 py-1.5 bg-green-600/10 text-green-700 rounded-full hover:bg-green-600 hover:text-white transition-smooth"
+                                                        >
+                                                            Confirm Delivery
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            )}
+                        </div>
+                    </section>
+
+                    {/* PURCHASE REQUESTS */}
+                    <section>
+                        <div className="flex justify-between items-center mb-10 border-b border-border pb-4">
+                            <h2 className="text-h3 font-bold uppercase tracking-widest">Purchase Requests</h2>
+                            <span className="text-[10px] uppercase tracking-widest font-bold text-muted">New Requests</span>
+                        </div>
+                        <SimpleSellerRequests sellerId={user.id} />
+                    </section>
+
+                    {/* MY COLLECTION */}
+                    <section>
+                        <div className="flex justify-between items-center mb-10 border-b border-border pb-4">
+                            <h2 className="text-h3 font-bold uppercase tracking-widest">Active Gallery</h2>
+                            <span className="text-[10px] uppercase tracking-widest font-bold text-muted">{products.length} Pieces</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-6">
+                            {products.map(p => (
+                                <div key={p.id} className="luxury-card p-4 group">
+                                    <div className="aspect-[3/4] rounded-xl overflow-hidden mb-4 relative">
+                                        <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-smooth" alt="" />
+                                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[9px] text-white font-bold uppercase tracking-widest">
+                                            {p.stock} In Stock
+                                        </div>
+                                    </div>
+                                    <h4 className="text-caption font-bold truncate">{p.title}</h4>
+                                    <p className="text-caption text-primary font-bold mt-1">₹ {p.price.toLocaleString()}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </div>
+
+                {/* INSTITUTIONAL SHIPMENT CONFIRMATION MODAL */}
+                {confirmingOrder && (
+                    <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in">
+                        <div className="luxury-card max-w-lg w-full bg-white shadow-3xl p-10 space-y-10 border-primary/20">
+                            <div>
+                                <span className="text-[10px] uppercase tracking-[0.4em] text-primary font-bold">Integrity Protocol</span>
+                                <h2 className="text-h2 mt-4 font-light">Pre-Shipment Authentication</h2>
+                                <p className="text-[11px] text-muted uppercase tracking-widest mt-2 leading-relaxed font-bold">
+                                    Verify physical asset against digital registry to prevent incorrect dispatch.
+                                </p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="flex items-start gap-4 p-6 bg-accent/5 rounded-2xl cursor-pointer group hover:bg-accent/10 transition-smooth border border-transparent hover:border-primary/20">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1 w-5 h-5 rounded border-primary text-primary focus:ring-primary scale-125"
+                                        checked={confirmedSKU}
+                                        onChange={(e) => setConfirmedSKU(e.target.checked)}
+                                    />
+                                    <div className="flex-1">
+                                        <p className="text-caption font-bold uppercase tracking-widest">SKU Matched: {confirmingOrder.products?.sku || "UNASSIGNED"}</p>
+                                        <p className="text-[9px] text-muted uppercase tracking-widest mt-1">Confirmed piece SKU matches the digital upload certificate.</p>
+                                    </div>
+                                </label>
+
+                                <label className="flex items-start gap-4 p-6 bg-accent/5 rounded-2xl cursor-pointer group hover:bg-accent/10 transition-smooth border border-transparent hover:border-primary/20">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1 w-5 h-5 rounded border-primary text-primary focus:ring-primary scale-125"
+                                        checked={confirmedSpecs}
+                                        onChange={(e) => setConfirmedSpecs(e.target.checked)}
+                                    />
+                                    <div className="flex-1">
+                                        <p className="text-caption font-bold uppercase tracking-widest">Specs Verified: Size / Color</p>
+                                        <p className="text-[9px] text-muted uppercase tracking-widest mt-1">Confirmed size {confirmingOrder.size || "Standard"} and color match client request.</p>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <button
+                                    onClick={() => setConfirmingOrder(null)}
+                                    className="flex-1 py-4 text-[10px] font-bold uppercase tracking-widest text-muted hover:text-foreground transition-smooth"
+                                >
+                                    Cancel Protocol
+                                </button>
+                                <button
+                                    disabled={!confirmedSKU || !confirmedSpecs}
+                                    onClick={() => executeStatusUpdate(confirmingOrder.id, "shipped")}
+                                    className={`flex-2 luxury-button !py-4 !px-10 !text-[10px] ${(!confirmedSKU || !confirmedSpecs) ? "opacity-30 grayscale cursor-not-allowed" : ""}`}
+                                >
+                                    Authorize Shipment 🚀
+                                </button>
+                            </div>
+
+                            <div className="pt-6 border-t border-border flex items-center justify-between">
+                                <p className="text-[8px] uppercase tracking-widest font-bold text-muted/60">Institutional accountability enforced</p>
+                                <div className="flex items-center gap-1">
+                                    <span className="w-1 h-1 bg-primary rounded-full animate-pulse" />
+                                    <span className="text-[8px] uppercase tracking-widest font-bold text-primary">Secure Layer Active</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </main>
+    )
+}
