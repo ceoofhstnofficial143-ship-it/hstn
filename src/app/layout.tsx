@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   title: "HSTN - Shop With Sight",
   description: "Fabric Transparency for Every Trend",
   manifest: "/manifest.json",
-  themeColor: "#000000",
+  themeColor: "#d4a63c",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
   appleWebApp: {
     capable: true,

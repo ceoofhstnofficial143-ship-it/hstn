@@ -451,6 +451,46 @@ BEGIN
     SELECT EXTRACT(EPOCH FROM (NOW() - created_at))/86400 INTO days_since_upload
     FROM products WHERE id = p_product_id;
     
+    -- Liquidity boosts
+    new_seller_boost NUMERIC := 0;
+    low_view_boost NUMERIC := 0;
+    low_inventory_boost NUMERIC := 0;
+    
+    -- Get seller created_at and category
+    seller_created_at TIMESTAMP;
+    total_views INTEGER := 0;
+    category_product_count INTEGER := 0;
+    product_category TEXT;
+    
+    SELECT pr.created_at, p.category
+    INTO seller_created_at, product_category
+    FROM products p
+    JOIN profiles pr ON p.user_id = pr.id
+    WHERE p.id = p_product_id;
+    
+    -- New seller boost: 30% if seller < 7 days old
+    IF seller_created_at > NOW() - INTERVAL '7 days' THEN
+        new_seller_boost := 0.30;
+    END IF;
+    
+    -- Low view boost: 20% if product has < 50 views
+    SELECT COALESCE(pa.total_views, 0) INTO total_views
+    FROM product_analytics pa
+    WHERE pa.product_id = p_product_id;
+    
+    IF total_views < 50 THEN
+        low_view_boost := 0.20;
+    END IF;
+    
+    -- Low inventory boost: 15% if category has < 10 approved products
+    SELECT COUNT(*) INTO category_product_count
+    FROM products
+    WHERE category = product_category AND admin_status = 'approved';
+    
+    IF category_product_count < 10 THEN
+        low_inventory_boost := 0.15;
+    END IF;
+    
     -- Apply adaptive weights only if enabled and not in shadow mode
     IF adaptive_enabled AND NOT shadow_mode THEN
         -- Get dynamic multipliers (capped to respect weight distribution)
@@ -487,7 +527,8 @@ BEGIN
         (trust_tier * 15 * tier_weight) +                      -- Tier bonus (7%)
         (GREATEST(0, 30 - days_since_upload) * recency_weight); -- Recency bonus (5%)
     
-    RETURN final_score;
+    -- Apply liquidity boosts
+    final_score := final_score * (1 + new_seller_boost + low_view_boost + low_inventory_boost);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

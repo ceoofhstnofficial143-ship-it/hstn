@@ -61,24 +61,32 @@ function ProductsContent() {
                 
                 const { data: sellerData } = await supabase
                     .from("profiles")
-                    .select("username")
+                    .select("username, created_at")
                     .eq("id", product.user_id)
+                    .single()
+
+                const { data: analytics } = await supabase
+                    .from("product_analytics")
+                    .select("total_views")
+                    .eq("product_id", product.id)
                     .single()
 
                 return { 
                     ...product, 
                     trust,
                     seller_id: product.user_id,
-                    user: sellerData
+                    user: sellerData,
+                    total_views: analytics?.total_views || 0
                 }
             })
         )
 
-        // Apply Trust-Based Ranking Algorithm
+        // Apply Trust-Based Ranking Algorithm with Liquidity Engine
         // 1. Gold Verified (video_url exists) gets top priority
         // 2. High Trust tiers get secondary priority
         // 3. Recency boost (fresh drops)
-        // 4. Raw trust score
+        // 4. Liquidity boosts: New sellers (30%), Low views (20%), Low inventory (15%)
+        // 5. Raw trust score
         const rankedProducts = productsWithTrust.sort((a, b) => {
             // Priority 1: Gold Verification
             const aVerified = a.video_url ? 1 : 0
@@ -95,7 +103,27 @@ function ProductsContent() {
             const bRec = getRecencyBoost(b.created_at)
             if (aRec !== bRec) return bRec - aRec
 
-            // Priority 4: Trust Score
+            // Priority 4: Liquidity Boosts
+            // New seller boost
+            const aSellerCreated = new Date(a.user?.created_at || a.created_at)
+            const bSellerCreated = new Date(b.user?.created_at || b.created_at)
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            const aNewSeller = aSellerCreated > sevenDaysAgo ? 1 : 0
+            const bNewSeller = bSellerCreated > sevenDaysAgo ? 1 : 0
+            if (aNewSeller !== bNewSeller) return bNewSeller - aNewSeller
+
+            // Low view boost
+            const aLowView = a.total_views < 50 ? 1 : 0
+            const bLowView = b.total_views < 50 ? 1 : 0
+            if (aLowView !== bLowView) return bLowView - aLowView
+
+            // Low inventory boost (if category has <10 products)
+            const categoryProducts = productsWithTrust.filter(p => p.category === a.category)
+            const aLowInventory = categoryProducts.length < 10 ? 1 : 0
+            const bLowInventory = categoryProducts.length < 10 ? 1 : 0
+            if (aLowInventory !== bLowInventory) return bLowInventory - aLowInventory
+
+            // Priority 5: Trust Score
             const aScore = a.trust?.score ?? 0
             const bScore = b.trust?.score ?? 0
             if (aScore !== bScore) return bScore - aScore

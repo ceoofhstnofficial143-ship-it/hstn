@@ -33,6 +33,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     const [isWishlisted, setIsWishlisted] = useState(false)
     const [wishlistId, setWishlistId] = useState<string | null>(null)
     const [showVideo, setShowVideo] = useState(false)
+    const [isVisible, setIsVisible] = useState(false)
     const [user, setUser] = useState<any>(null)
 
     useEffect(() => {
@@ -56,6 +57,25 @@ export default function ProductCard({ product }: ProductCardProps) {
             setUser(user)
         }
         checkWishlist()
+
+        // Intersection Observer for auto-playing videos
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                setIsVisible(entry.isIntersecting)
+            },
+            { threshold: 0.5 } // Play when 50% visible
+        )
+
+        const cardElement = document.getElementById(`product-card-${product.id}`)
+        if (cardElement) {
+            observer.observe(cardElement)
+        }
+
+        return () => {
+            if (cardElement) {
+                observer.unobserve(cardElement)
+            }
+        }
     }, [product.id])
 
     const handleWishlistToggle = async (e: React.MouseEvent) => {
@@ -105,18 +125,18 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden group">
+        <div id={`product-card-${product.id}`} className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden group">
             <Link href={`/products/${product.id}`} className="block">
                 {/* Image Container */}
-                <div className="relative aspect-square overflow-hidden">
+                <div className="relative h-48 overflow-hidden">
                     {product.image_url ? (
                         <>
                             <img
                                 src={product.image_url}
                                 alt={product.title}
-                                className={`w-full h-full object-cover transition-transform duration-300 ${showVideo && product.video_url ? "opacity-0" : "group-hover:scale-105"}`}
+                                className={`w-full h-full object-cover transition-transform duration-300 ${isVisible && product.video_url ? "opacity-0" : "group-hover:scale-105"}`}
                             />
-                            {product.video_url && showVideo && (
+                            {product.video_url && isVisible && (
                                 <video
                                     src={product.video_url}
                                     autoPlay
@@ -140,14 +160,14 @@ export default function ProductCard({ product }: ProductCardProps) {
                         </div>
                     </div>
 
-                    {/* Video Toggle */}
+                    {/* Video Badge */}
                     {product.video_url && (
-                        <button
-                            onClick={handleVideoToggle}
-                            className="absolute top-3 right-3 p-2 rounded-full bg-black/50 text-white text-xs font-semibold lg:hidden"
-                        >
-                            {showVideo ? "IMG" : "VID"}
-                        </button>
+                        <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-black/50 text-white backdrop-blur-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                            </svg>
+                            VID
+                        </div>
                     )}
 
                     {/* Wishlist */}

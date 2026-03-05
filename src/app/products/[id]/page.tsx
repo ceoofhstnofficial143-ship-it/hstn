@@ -22,10 +22,9 @@ export default function ProductPage() {
     const [city, setCity] = useState("")
     const [pincode, setPincode] = useState("")
 
-    // Review state
-    const [reviews, setReviews] = useState<any[]>([])
-    const [newReview, setNewReview] = useState({ rating: 5, comment: "", photo_url: "" })
-    const [submittingReview, setSubmittingReview] = useState(false)
+    const [averageRating, setAverageRating] = useState(0)
+    const [soldToday, setSoldToday] = useState(0)
+    const [viewing, setViewing] = useState(0)
 
     useEffect(() => {
         const run = async () => {
@@ -51,7 +50,19 @@ export default function ProductPage() {
                     .eq("product_id", id)
                     .order("created_at", { ascending: false })
 
-                if (revs) setReviews(revs)
+                if (revs) {
+                    setReviews(revs)
+                    if (revs.length > 0) {
+                        const total = revs.reduce((sum, r) => sum + r.rating, 0)
+                        setAverageRating(total / revs.length)
+                    } else {
+                        setAverageRating(0)
+                    }
+                }
+
+                // Placeholder data for social proof and urgency
+                setSoldToday(Math.floor(Math.random() * 500) + 100)
+                setViewing(Math.floor(Math.random() * 20) + 5)
             }
 
             const { data: { user: u } } = await supabase.auth.getUser()
@@ -93,7 +104,8 @@ export default function ProductPage() {
         }
         localStorage.setItem("hstn-cart", JSON.stringify(cart))
         alert("Added to your acquisitions bag 🛍️")
-        router.refresh()
+    const handleSaveForLater = () => {
+        alert("Saved for later ♥")
     }
 
     const handleOrder = async () => {
@@ -199,7 +211,7 @@ export default function ProductPage() {
 
     return (
         <main className="bg-background min-h-screen">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8">
 
                 {/* Back Navigation */}
                 <Link href="/products" className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 mb-8 transition-colors">
@@ -261,11 +273,37 @@ export default function ProductPage() {
                                 {product.category || "Fashion"}
                             </span>
                             <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4">{product.title}</h1>
+
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
+                                <div className="flex items-center gap-1">
+                                    <span>⭐</span>
+                                    <span>{averageRating.toFixed(1)} ({reviews.length} reviews)</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span>✔</span>
+                                    <span>{soldToday} sold today</span>
+                                </div>
+                                {averageRating > 4.5 && reviews.length > 10 && <div className="flex items-center gap-1 text-red-600 font-medium">
+                                    <span>🔥</span>
+                                    <span>Trending in Gen-Z Fashion</span>
+                                </div>}
+                            </div>
                         </div>
 
                         {/* Price */}
                         <div className="text-3xl font-bold text-gray-900">
                             ₹{product.price.toLocaleString()}
+                        </div>
+
+                        <div className="space-y-1 pt-2">
+                            <div className="flex items-center gap-1 text-sm text-red-600 font-medium">
+                                <span>🔥</span>
+                                <span>{viewing} people viewing this item</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm text-orange-600 font-medium">
+                                <span>⏳</span>
+                                <span>Only {product.stock} left in stock</span>
+                            </div>
                         </div>
 
                         {/* Trust Badge */}
@@ -300,7 +338,12 @@ export default function ProductPage() {
 
                         {/* Purchase Buttons */}
                         <div className="space-y-3 pt-6">
-                            <SimplePurchaseRequestButton product={product} user={user} />
+                            <button
+                                onClick={handleOrder}
+                                className="luxury-button w-full min-h-[44px]"
+                            >
+                                BUY NOW
+                            </button>
 
                             <button
                                 onClick={handleAddToCart}
@@ -308,15 +351,20 @@ export default function ProductPage() {
                             >
                                 Add to Cart
                             </button>
+
+                            <button
+                                onClick={handleSaveForLater}
+                                className="w-full h-11 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                            >
+                                ♥ Save for Later
+                            </button>
                         </div>
 
-                        {/* Stock Status */}
-                        <div className="text-sm text-gray-600">
-                            {product.stock > 0 ? (
-                                <span className="text-green-600 font-semibold">{product.stock} in stock</span>
-                            ) : (
-                                <span className="text-red-600 font-semibold">Out of stock</span>
-                            )}
+                        {/* Trust Triggers */}
+                        <div className="flex items-center justify-between text-xs text-gray-500 pt-4">
+                            <span>✔ Free returns</span>
+                            <span>✔ Secure payment</span>
+                            <span>✔ Fast shipping</span>
                         </div>
                     </div>
 
@@ -342,6 +390,30 @@ export default function ProductPage() {
                     </div>
                 )}
 
+            </div>
+
+            {/* Mobile Bottom Bar */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 md:hidden">
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleSaveForLater}
+                        className="flex-1 h-12 border border-gray-300 text-gray-700 font-semibold rounded-lg flex items-center justify-center gap-2"
+                    >
+                        ♥ Save
+                    </button>
+                    <button
+                        onClick={handleAddToCart}
+                        className="flex-1 h-12 bg-gray-100 text-gray-900 font-semibold rounded-lg flex items-center justify-center"
+                    >
+                        Add Cart
+                    </button>
+                    <button
+                        onClick={handleOrder}
+                        className="flex-1 h-12 luxury-button min-h-[44px]"
+                    >
+                        BUY NOW
+                    </button>
+                </div>
             </div>
         </main>
     )
