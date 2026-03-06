@@ -6,6 +6,7 @@ import Link from "next/link"
 import { supabase } from "@/lib/supabase"
 import { getTrustTier } from "@/lib/trustTier"
 import SimplePurchaseRequestButton from "@/components/SimplePurchaseRequestButton"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export default function ProductPage() {
     const router = useRouter()
@@ -25,6 +26,7 @@ export default function ProductPage() {
     const [averageRating, setAverageRating] = useState(0)
     const [soldToday, setSoldToday] = useState(0)
     const [viewing, setViewing] = useState(0)
+    const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
     // Review state
     const [reviews, setReviews] = useState<any[]>([])
@@ -217,6 +219,9 @@ export default function ProductPage() {
 
     const tier = product ? getTrustTier(product.trust?.score) : { name: "Probation", icon: "⚪", label: "New Seller", badgeClass: "" }
 
+    // Get all images including additional_images
+    const allImages = product ? [product.image_url, ...(product.additional_images || [])].filter(Boolean) : []
+
     return (
         <main className="bg-background min-h-screen">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8">
@@ -228,16 +233,68 @@ export default function ProductPage() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
 
-                    {/* LEFT: Image Gallery */}
-                    <div className="space-y-6">
-                        {/* Main Image */}
-                        <div className="aspect-square overflow-hidden rounded-xl bg-gray-100">
-                            <img
-                                src={product.image_url}
-                                alt={product.title}
-                                className="w-full h-full object-cover"
-                            />
+                    {/* LEFT: Image Gallery with Carousel */}
+                    <div className="space-y-4">
+                        {/* Main Image Carousel */}
+                        <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 group">
+                            {allImages.length > 0 ? (
+                                <>
+                                    <img
+                                        src={allImages[currentImageIndex]}
+                                        alt={`${product.title} - Photo ${currentImageIndex + 1}`}
+                                        className="w-full h-full object-cover transition-transform duration-500"
+                                    />
+                                    
+                                    {/* Navigation Arrows */}
+                                    {allImages.length > 1 && (
+                                        <>
+                                            <button
+                                                onClick={() => setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1)}
+                                                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                            >
+                                                <ChevronLeft className="w-5 h-5 text-gray-800" />
+                                            </button>
+                                            <button
+                                                onClick={() => setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                            >
+                                                <ChevronRight className="w-5 h-5 text-gray-800" />
+                                            </button>
+                                        </>
+                                    )}
+                                    
+                                    {/* Image Counter */}
+                                    {allImages.length > 1 && (
+                                        <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-3 py-1 rounded-full">
+                                            {currentImageIndex + 1} / {allImages.length}
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <img
+                                    src={product.image_url}
+                                    alt={product.title}
+                                    className="w-full h-full object-cover"
+                                />
+                            )}
                         </div>
+                        
+                        {/* Thumbnail Strip */}
+                        {allImages.length > 1 && (
+                            <div className="flex gap-2 overflow-x-auto pb-2">
+                                {allImages.map((img, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setCurrentImageIndex(idx)}
+                                        className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                                            idx === currentImageIndex ? 'border-black' : 'border-gray-200 hover:border-gray-400'
+                                        }`}
+                                    >
+                                        <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
 
                         {/* Video if available */}
                         {product.video_url && (

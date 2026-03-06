@@ -93,19 +93,23 @@ export default function UploadPage() {
     setLoading(true)
     let imageUrl = ""
     let videoUrl = ""
+    let imageUrls: string[] = [] // Store all image URLs for carousel
 
     // Upload Process
     if (uploadMode === "authentication") {
-      // Upload Main Photo (Front View)
-      if (photos[0]) {
-        const fileName = `${user.id}-${Date.now()}.jpg`
-        const { error: uploadError } = await supabase.storage
-          .from("product-images")
-          .upload(fileName, photos[0])
+      // Upload All 6 Photos
+      for (let i = 0; i < photos.length; i++) {
+        if (photos[i]) {
+          const fileName = `${user.id}-${Date.now()}-${i}.jpg`
+          const { error: uploadError } = await supabase.storage
+            .from("product-images")
+            .upload(fileName, photos[i])
 
-        if (!uploadError) {
-          const { data } = supabase.storage.from("product-images").getPublicUrl(fileName)
-          imageUrl = data.publicUrl
+          if (!uploadError) {
+            const { data } = supabase.storage.from("product-images").getPublicUrl(fileName)
+            imageUrls.push(data.publicUrl)
+            if (i === 0) imageUrl = data.publicUrl // Main image
+          }
         }
       }
 
@@ -172,6 +176,9 @@ export default function UploadPage() {
       return
     }
 
+    // Store all image URLs for carousel
+    const allImageUrls = imageUrls.length > 0 ? imageUrls : [imageUrl]
+
     const { error } = await supabase
       .from("products")
       .insert([
@@ -181,6 +188,7 @@ export default function UploadPage() {
           price: Number(price),
           description,
           image_url: imageUrl,
+          additional_images: allImageUrls.slice(1), // Store remaining 5 images
           video_url: videoUrl,
           user_id: user.id,
           stock,

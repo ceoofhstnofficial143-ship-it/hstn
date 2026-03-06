@@ -140,8 +140,7 @@ export default function AdminPage() {
         }
 
         const { error } = await supabase.from("products").update({
-            admin_status: action,
-            review_reason: reason
+            admin_status: action
         }).eq("id", id);
 
         if (error) {
