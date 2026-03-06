@@ -130,6 +130,7 @@ export default function AdminPage() {
     }
 
     const reviewAction = async (id: string, action: 'approved' | 'rejected' | 'reupload', sellerId: string) => {
+        console.log(`Review action: ${action} for product ${id}`)
         let reason = "";
 
         if (action === "rejected") {
@@ -143,10 +144,17 @@ export default function AdminPage() {
             review_reason: reason
         }).eq("id", id);
 
-        if (!error) fetchStats();
+        if (error) {
+            console.error("Review action error:", error)
+            alert(`Failed to ${action}: ${error.message}`)
+        } else {
+            console.log(`Successfully ${action} product ${id}`)
+            fetchStats();
+        }
     }
 
     const deleteProduct = async (id: string) => {
+        console.log(`Deleting product ${id}`)
         const confirmDelete = confirm("ACTIVATE OVERRIDE: Are you certain you want to redact this listing from the market?")
         if (!confirmDelete) return
 
@@ -156,13 +164,16 @@ export default function AdminPage() {
             .eq("id", id)
 
         if (error) {
-            alert("Override Failed: External system error.")
+            console.error("Delete error:", error)
+            alert(`Override Failed: ${error.message}`)
         } else {
+            console.log(`Successfully deleted product ${id}`)
             fetchStats()
         }
     }
 
     const toggleAdmin = async (targetUser: any) => {
+        console.log(`Toggling admin for user ${targetUser.id}`)
         const newRole = targetUser.role === 'admin' ? 'user' : 'admin'
         const { error } = await supabase
             .from('profiles')
@@ -170,21 +181,26 @@ export default function AdminPage() {
             .eq('id', targetUser.id)
 
         if (error) {
-            alert("Protocol failure: Unable to update role.")
+            console.error("Toggle admin error:", error)
+            alert(`Protocol failure: ${error.message}`)
         } else {
-            fetchStats() // Refresh all data
+            console.log(`Successfully changed role to ${newRole}`)
+            fetchStats()
         }
     }
 
     const toggleBan = async (id: string, currentStatus: boolean) => {
+        console.log(`Toggling ban for user ${id}`)
         const { error } = await supabase
             .from("profiles")
             .update({ is_banned: !currentStatus })
             .eq("id", id)
 
         if (error) {
-            alert("Ban protocol failed: Unable to update status.")
+            console.error("Ban error:", error)
+            alert(`Ban protocol failed: ${error.message}`)
         } else {
+            console.log(`Successfully ${!currentStatus ? 'banned' : 'restored'} user ${id}`)
             fetchStats()
         }
     }
