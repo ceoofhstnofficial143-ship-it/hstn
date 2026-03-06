@@ -190,7 +190,7 @@ export default function UploadPage() {
           model_info: { height: modelHeight, weight: modelWeight, size: modelSize },
           fit_type: fitType,
           size_verified: true,
-          admin_status: 'pending' // Force admin review initially
+          admin_status: 'approved'
         },
       ])
 
