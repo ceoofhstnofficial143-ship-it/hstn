@@ -176,17 +176,34 @@ export default function AdminPage() {
         const confirmDelete = confirm("⚠️ PERMANENT DELETION: This will completely remove the product from the database. This action cannot be undone. Are you sure?")
         if (!confirmDelete) return
 
-        const { error } = await supabase
-            .from("products")
-            .delete()
-            .eq("id", id)
+        try {
+            // First clean up wishlist entries
+            const { error: wishlistError } = await supabase
+                .from("wishlist")
+                .delete()
+                .eq("product_id", id)
 
-        if (error) {
-            console.error("Permanent delete error:", error)
-            alert(`Permanent deletion failed: ${error.message}`)
-        } else {
-            console.log(`Successfully permanently deleted product ${id}`)
-            fetchStats()
+            if (wishlistError) {
+                console.error("Wishlist cleanup error:", wishlistError)
+                // Continue anyway - wishlist cleanup failure shouldn't block product deletion
+            }
+
+            // Then delete the product
+            const { error: productError } = await supabase
+                .from("products")
+                .delete()
+                .eq("id", id)
+
+            if (productError) {
+                console.error("Permanent delete error:", productError)
+                alert(`Permanent deletion failed: ${productError.message}`)
+            } else {
+                console.log(`Successfully permanently deleted product ${id}`)
+                fetchStats()
+            }
+        } catch (error) {
+            console.error("Unexpected error during permanent delete:", error)
+            alert("Unexpected error during permanent deletion")
         }
     }
 
