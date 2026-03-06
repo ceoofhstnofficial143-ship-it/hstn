@@ -404,10 +404,10 @@ export default function ProductPage() {
                         {/* Purchase Buttons */}
                         <div className="space-y-3 pt-6">
                             <button
-                                onClick={handleOrder}
-                                className="luxury-button w-full min-h-[44px]"
+                                disabled
+                                className="luxury-button w-full min-h-[44px] opacity-50 cursor-not-allowed"
                             >
-                                BUY NOW
+                                Coming Soon
                             </button>
 
                             <button
@@ -473,10 +473,10 @@ export default function ProductPage() {
                         Add Cart
                     </button>
                     <button
-                        onClick={handleOrder}
-                        className="flex-1 h-12 luxury-button min-h-[44px]"
+                        disabled
+                        className="flex-1 h-12 luxury-button min-h-[44px] opacity-50 cursor-not-allowed"
                     >
-                        BUY NOW
+                        Coming Soon
                     </button>
                 </div>
             </div>
