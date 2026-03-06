@@ -37,12 +37,15 @@ export default function LoginPage() {
         </header>
 
         <div className="space-y-4">
-          <button
-            onClick={loginWithGoogle}
-            className="w-full flex items-center justify-center gap-4 py-4 px-6 border border-border rounded-full text-caption font-bold uppercase tracking-widest hover:bg-accent/50 transition-smooth button-press"
-          >
-            <span>Continue with Google</span>
-          </button>
+          <div>
+            <button
+              onClick={loginWithGoogle}
+              className="w-full flex items-center justify-center gap-4 py-4 px-6 border border-border rounded-full text-caption font-bold uppercase tracking-widest hover:bg-accent/50 transition-smooth button-press"
+            >
+              <span>Continue with Google</span>
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-2">Choose the Google account you want to use</p>
+          </div>
 
           <button
             onClick={loginWithEmail}

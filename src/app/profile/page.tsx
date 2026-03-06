@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function ProfilePage() {
     const [user, setUser] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    const router = useRouter()
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -50,7 +52,7 @@ export default function ProfilePage() {
                         <div className="mt-8 text-[10px] uppercase tracking-widest text-primary font-bold group-hover:translate-x-2 transition-smooth">View Items →</div>
                     </Link>
 
-                    <div className="luxury-card p-10 bg-accent/20 border-none group hover-lift cursor-pointer">
+                    <div className="luxury-card p-10 bg-accent/20 border-none group hover-lift cursor-pointer" onClick={() => router.push("/settings")}>
                         <div className="text-3xl mb-4">⚙️</div>
                         <h3 className="text-h3 font-bold mb-2">Settings</h3>
                         <p className="text-caption">Update your profile, shipping addresses, and security.</p>

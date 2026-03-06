@@ -26,6 +26,11 @@ export default function ProductPage() {
     const [soldToday, setSoldToday] = useState(0)
     const [viewing, setViewing] = useState(0)
 
+    // Review state
+    const [reviews, setReviews] = useState<any[]>([])
+    const [newReview, setNewReview] = useState({ rating: 5, comment: "", photo_url: "" })
+    const [submittingReview, setSubmittingReview] = useState(false)
+
     useEffect(() => {
         const run = async () => {
             if (!id) return
@@ -104,6 +109,9 @@ export default function ProductPage() {
         }
         localStorage.setItem("hstn-cart", JSON.stringify(cart))
         alert("Added to your acquisitions bag 🛍️")
+        router.refresh()
+    }
+
     const handleSaveForLater = () => {
         alert("Saved for later ♥")
     }

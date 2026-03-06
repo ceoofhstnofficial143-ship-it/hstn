@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import React from "react"
 
 export default function Navbar() {
   const router = useRouter()
@@ -30,14 +31,46 @@ export default function Navbar() {
       >
         Gallery
       </Link>
+      {mobile && (
+        <>
+          <Link
+            href="/products?filter=new"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-medium uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
+          >
+            🔥 New Arrivals
+          </Link>
+          <Link
+            href="/products?filter=trending"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-medium uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
+          >
+            ⭐ Trending Now
+          </Link>
+          <Link
+            href="/products?filter=premium"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-medium uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
+          >
+            💎 Premium Picks
+          </Link>
+        </>
+      )}
       {user && (
         <>
           <Link
             href="/orders"
             onClick={() => setIsMobileMenuOpen(false)}
-            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-semibold uppercase tracking-widest hover:text-primary transition-smooth`}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-semibold uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
           >
-            Orders
+            🛍 My Orders
+          </Link>
+          <Link
+            href="/wishlist"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-semibold uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
+          >
+            ❤️ Wishlist
           </Link>
           <Link
             href="/seller/dashboard"
@@ -49,9 +82,9 @@ export default function Navbar() {
           <Link
             href="/profile"
             onClick={() => setIsMobileMenuOpen(false)}
-            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-semibold uppercase tracking-widest hover:text-primary transition-smooth`}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-semibold uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
           >
-            Profile
+            👤 My Profile
           </Link>
         </>
       )}
@@ -212,18 +245,35 @@ export default function Navbar() {
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 top-[73px] bg-background z-[100] lg:hidden overflow-y-auto">
-          <div className="flex flex-col p-8 space-y-4">
-            {/* Mobile Search */}
-            <form onSubmit={handleSearch} className="mb-6">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search fashion..."
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </form>
+        <React.Fragment>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-[99] lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          
+          {/* Menu Content */}
+          <div className="fixed inset-0 top-16 bg-background z-[100] lg:hidden overflow-y-auto">
+            <div className="flex flex-col p-8 space-y-4">
+              {/* Close Button */}
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="self-end text-2xl mb-4"
+                aria-label="Close menu"
+              >
+                ✕
+              </button>
+
+              {/* Mobile Search */}
+              <form onSubmit={handleSearch} className="mb-6">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search fashion..."
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </form>
 
             <NavLinks mobile />
 
@@ -268,6 +318,7 @@ export default function Navbar() {
             </div>
           </div>
         </div>
+      </React.Fragment>
       )}
 
       {/* Desktop Navigation Bar */}
