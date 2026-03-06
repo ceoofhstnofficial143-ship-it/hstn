@@ -116,10 +116,18 @@ export default function UploadPage() {
           .from("product-videos")
           .upload(fileName, video)
 
-        if (!videoError) {
-          const { data } = supabase.storage.from("product-videos").getPublicUrl(fileName)
-          videoUrl = data.publicUrl
+        if (videoError) {
+          alert(`Video upload failed: ${videoError.message}`)
+          setLoading(false)
+          return
         }
+        
+        const { data } = supabase.storage.from("product-videos").getPublicUrl(fileName)
+        videoUrl = data.publicUrl
+      } else {
+        alert("No video captured. Please complete the 8-second fabric verification.")
+        setLoading(false)
+        return
       }
     } else {
       // Standard Upload
