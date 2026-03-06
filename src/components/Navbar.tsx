@@ -245,15 +245,15 @@ export default function Navbar() {
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <React.Fragment>
+        <div className="fixed inset-0 z-[100] lg:hidden">
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black/50 z-[99] lg:hidden"
+            className="absolute inset-0 bg-black/50"
             onClick={() => setIsMobileMenuOpen(false)}
           />
           
           {/* Menu Content */}
-          <div className="fixed inset-0 top-16 bg-background z-[100] lg:hidden overflow-y-auto">
+          <div className="absolute top-16 left-0 right-0 bottom-0 bg-background overflow-y-auto">
             <div className="flex flex-col p-8 space-y-4">
               {/* Close Button */}
               <button
@@ -275,50 +275,50 @@ export default function Navbar() {
                 />
               </form>
 
-            <NavLinks mobile />
+              <NavLinks mobile />
 
-            <div className="pt-8 mt-4 border-t border-border space-y-6">
-              {!user ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <Link
-                    href="/login"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="luxury-button !bg-accent/10 !text-foreground text-center !py-4"
-                  >
-                    Login
-                  </Link>
-                  <Link
-                    href="/signup"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="luxury-button text-center !py-4"
-                  >
-                    Join
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <Link
-                    href="/upload"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="luxury-button block text-center !py-4"
-                  >
-                    List New Asset
-                  </Link>
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="w-full text-center py-4 text-red-500 font-bold uppercase tracking-widest text-xs"
-                  >
-                    Terminate Session (Logout)
-                  </button>
-                </div>
-              )}
+              <div className="pt-8 mt-4 border-t border-border space-y-6">
+                {!user ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <Link
+                      href="/login"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="luxury-button !bg-accent/10 !text-foreground text-center !py-4"
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      href="/signup"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="luxury-button text-center !py-4"
+                    >
+                      Join
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Link
+                      href="/upload"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="luxury-button block text-center !py-4"
+                    >
+                      List New Asset
+                    </Link>
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="w-full text-center py-4 text-red-500 font-bold uppercase tracking-widest text-xs"
+                    >
+                      Terminate Session (Logout)
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </React.Fragment>
       )}
 
       {/* Desktop Navigation Bar */}
