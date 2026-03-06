@@ -177,15 +177,30 @@ export default function AdminPage() {
         if (!confirmDelete) return
 
         try {
-            // First clean up wishlist entries
-            const { error: wishlistError } = await supabase
-                .from("wishlist")
-                .delete()
-                .eq("product_id", id)
+            // Clean up all related records first
+            const cleanupOperations = [
+                // Wishlist entries
+                supabase.from("wishlist").delete().eq("product_id", id),
+                // Reviews
+                supabase.from("reviews").delete().eq("product_id", id),
+                // Orders (if they reference products directly)
+                supabase.from("orders").delete().eq("product_id", id),
+                // Cart items (if exists)
+                supabase.from("cart").delete().eq("product_id", id),
+                // Purchase requests (if exists)
+                supabase.from("purchase_requests").delete().eq("product_id", id),
+            ]
 
-            if (wishlistError) {
-                console.error("Wishlist cleanup error:", wishlistError)
-                // Continue anyway - wishlist cleanup failure shouldn't block product deletion
+            // Execute all cleanup operations
+            for (const operation of cleanupOperations) {
+                try {
+                    const { error } = await operation
+                    if (error) {
+                        console.warn("Cleanup error (continuing anyway):", error)
+                    }
+                } catch (err) {
+                    console.warn("Cleanup operation failed (continuing anyway):", err)
+                }
             }
 
             // Then delete the product
