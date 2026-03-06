@@ -152,6 +152,25 @@ export default function AdminPage() {
         }
     }
 
+    const deleteProduct = async (id: string) => {
+        console.log(`Soft deleting product ${id}`)
+        const confirmDelete = confirm("ACTIVATE OVERRIDE: Are you certain you want to redact this listing from the market? This will hide it from buyers.")
+        if (!confirmDelete) return
+
+        const { error } = await supabase
+            .from("products")
+            .update({ admin_status: 'deleted', title: '[REDACTED]' }) // Soft delete
+            .eq("id", id)
+
+        if (error) {
+            console.error("Soft delete error:", error)
+            alert(`Override Failed: ${error.message}`)
+        } else {
+            console.log(`Successfully soft deleted product ${id}`)
+            fetchStats()
+        }
+    }
+
     const permanentDeleteProduct = async (id: string) => {
         console.log(`Permanently deleting product ${id}`)
         const confirmDelete = confirm("⚠️ PERMANENT DELETION: This will completely remove the product from the database. This action cannot be undone. Are you sure?")
