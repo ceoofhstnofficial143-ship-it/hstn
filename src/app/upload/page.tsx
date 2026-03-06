@@ -113,7 +113,7 @@ export default function UploadPage() {
       if (video) {
         const fileName = `${user.id}-fabric-${Date.now()}.webm`
         const { error: videoError } = await supabase.storage
-          .from("product-videos")
+          .from("videos")
           .upload(fileName, video)
 
         if (videoError) {
@@ -122,7 +122,7 @@ export default function UploadPage() {
           return
         }
         
-        const { data } = supabase.storage.from("product-videos").getPublicUrl(fileName)
+        const { data } = supabase.storage.from("videos").getPublicUrl(fileName)
         videoUrl = data.publicUrl
       } else {
         alert("No video captured. Please complete the 8-second fabric verification.")
