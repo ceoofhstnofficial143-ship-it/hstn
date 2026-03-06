@@ -152,21 +152,21 @@ export default function AdminPage() {
         }
     }
 
-    const deleteProduct = async (id: string) => {
-        console.log(`Soft deleting product ${id}`)
-        const confirmDelete = confirm("ACTIVATE OVERRIDE: Are you certain you want to redact this listing from the market? This will hide it from buyers.")
+    const permanentDeleteProduct = async (id: string) => {
+        console.log(`Permanently deleting product ${id}`)
+        const confirmDelete = confirm("⚠️ PERMANENT DELETION: This will completely remove the product from the database. This action cannot be undone. Are you sure?")
         if (!confirmDelete) return
 
         const { error } = await supabase
             .from("products")
-            .update({ admin_status: 'deleted', title: '[REDACTED]' }) // Soft delete
+            .delete()
             .eq("id", id)
 
         if (error) {
-            console.error("Soft delete error:", error)
-            alert(`Override Failed: ${error.message}`)
+            console.error("Permanent delete error:", error)
+            alert(`Permanent deletion failed: ${error.message}`)
         } else {
-            console.log(`Successfully soft deleted product ${id}`)
+            console.log(`Successfully permanently deleted product ${id}`)
             fetchStats()
         }
     }
@@ -381,6 +381,14 @@ export default function AdminPage() {
                                                 <button onClick={() => reviewAction(product.id, 'reupload', product.user_id)} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">Req. Re-upload</button>
                                                 <button onClick={() => reviewAction(product.id, 'rejected', product.user_id)} className="bg-slate-900 hover:bg-black text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">Reject File</button>
                                             </>
+                                        )}
+                                        {product.admin_status === 'deleted' && (
+                                            <button
+                                                onClick={() => permanentDeleteProduct(product.id)}
+                                                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                Permanent Delete
+                                            </button>
                                         )}
                                         {product.video_url && (
                                             <a href={product.video_url} target="_blank" className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">
