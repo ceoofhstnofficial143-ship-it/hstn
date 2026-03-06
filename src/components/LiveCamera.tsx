@@ -91,33 +91,58 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
     const startRecording = () => {
         if (!streamRef.current) return
         chunksRef.current = []
-        const recorder = new MediaRecorder(streamRef.current, { mimeType: "video/webm" })
-        mediaRecorderRef.current = recorder
+        
+        // Check for MIME type support
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+            ? "video/webm;codecs=vp9"
+            : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+            ? "video/webm;codecs=vp8"
+            : MediaRecorder.isTypeSupported("video/webm")
+            ? "video/webm"
+            : "video/mp4"
+        
+        try {
+            const recorder = new MediaRecorder(streamRef.current, { mimeType })
+            mediaRecorderRef.current = recorder
 
-        recorder.ondataavailable = (e) => {
-            if (e.data.size > 0) chunksRef.current.push(e.data)
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunksRef.current.push(e.data)
+            }
+
+            recorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, { type: mimeType })
+                setVideoBlob(blob)
+                setStep(7) // Complete
+            }
+
+            recorder.onerror = (e) => {
+                console.error("MediaRecorder error:", e)
+                alert("Recording failed. Please try again.")
+                setIsRecording(false)
+            }
+
+            recorder.start(100) // Collect data every 100ms for better reliability
+            setIsRecording(true)
+            setTimeLeft(8)
+
+            const timer = setInterval(() => {
+                setTimeLeft((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(timer)
+                        // Force stop after timeout
+                        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+                            mediaRecorderRef.current.stop()
+                        }
+                        setIsRecording(false)
+                        return 0
+                    }
+                    return prev - 1
+                })
+            }, 1000)
+        } catch (err) {
+            console.error("Failed to start recording:", err)
+            alert("Video recording not supported on this device. Please try a different browser.")
         }
-
-        recorder.onstop = () => {
-            const blob = new Blob(chunksRef.current, { type: "video/webm" })
-            setVideoBlob(blob)
-            setStep(7) // Complete
-        }
-
-        recorder.start()
-        setIsRecording(true)
-        setTimeLeft(8)
-
-        const timer = setInterval(() => {
-            setTimeLeft((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timer)
-                    stopRecording()
-                    return 0
-                }
-                return prev - 1
-            })
-        }, 1000)
     }
 
     const stopRecording = () => {
