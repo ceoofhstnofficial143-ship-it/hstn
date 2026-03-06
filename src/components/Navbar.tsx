@@ -142,7 +142,8 @@ export default function Navbar() {
   }
 
   return (
-    <header className="w-full border-b bg-background/80 backdrop-blur-md">
+    <>
+      <header className="w-full border-b bg-background/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3">
 
         {/* Left Section: Mobile Menu + Logo */}
@@ -243,84 +244,6 @@ export default function Navbar() {
 
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-[100] lg:hidden">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
-          
-          {/* Menu Content */}
-          <div className="absolute top-16 left-0 right-0 bottom-0 bg-background overflow-y-auto">
-            <div className="flex flex-col p-8 space-y-4">
-              {/* Close Button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="self-end text-2xl mb-4"
-                aria-label="Close menu"
-              >
-                ✕
-              </button>
-
-              {/* Mobile Search */}
-              <form onSubmit={handleSearch} className="mb-6">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search fashion..."
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </form>
-
-              <NavLinks mobile />
-
-              <div className="pt-8 mt-4 border-t border-border space-y-6">
-                {!user ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <Link
-                      href="/login"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="luxury-button !bg-accent/10 !text-foreground text-center !py-4"
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      href="/signup"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="luxury-button text-center !py-4"
-                    >
-                      Join
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <Link
-                      href="/upload"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="luxury-button block text-center !py-4"
-                    >
-                      List New Asset
-                    </Link>
-                    <button
-                      onClick={() => {
-                        handleLogout();
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className="w-full text-center py-4 text-red-500 font-bold uppercase tracking-widest text-xs"
-                    >
-                      Terminate Session (Logout)
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Desktop Navigation Bar */}
       <div className="hidden lg:block border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -330,5 +253,84 @@ export default function Navbar() {
         </div>
       </div>
     </header>
+
+    {/* Mobile Menu Overlay - Outside header to prevent clipping */}
+    {isMobileMenuOpen && (
+      <div className="fixed inset-0 z-[9999] lg:hidden">
+        {/* Backdrop */}
+        <div 
+          className="absolute inset-0 bg-black/50"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+        
+        {/* Menu Content */}
+        <div className="absolute top-[57px] left-0 right-0 bottom-0 bg-background overflow-y-auto">
+          <div className="flex flex-col p-8 space-y-4">
+            {/* Close Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="self-end text-2xl mb-4"
+              aria-label="Close menu"
+            >
+              ✕
+            </button>
+
+            {/* Mobile Search */}
+            <form onSubmit={handleSearch} className="mb-6">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search fashion..."
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </form>
+
+            <NavLinks mobile />
+
+            <div className="pt-8 mt-4 border-t border-border space-y-6">
+              {!user ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <Link
+                    href="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="luxury-button !bg-accent/10 !text-foreground text-center !py-4"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="luxury-button text-center !py-4"
+                  >
+                    Join
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Link
+                    href="/upload"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="luxury-button block text-center !py-4"
+                  >
+                    List New Asset
+                  </Link>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-center py-4 text-red-500 font-bold uppercase tracking-widest text-xs"
+                  >
+                    Terminate Session (Logout)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
