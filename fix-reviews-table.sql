@@ -1,14 +1,31 @@
 -- FIX: Supabase Reviews 400 Error
 -- Run this in your Supabase SQL Editor to fix the reviews table
 
--- 1. Check if reviews table exists
-SELECT EXISTS (
-    SELECT FROM information_schema.tables
-    WHERE table_schema = 'public'
-    AND table_name = 'reviews'
-);
+-- 1. Check current table structure
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'reviews'
+AND table_schema = 'public'
+ORDER BY ordinal_position;
 
--- 2. If table doesn't exist, create it
+-- 2. If table exists with buyer_id instead of user_id, rename the column
+DO $$
+BEGIN
+    -- Check if buyer_id exists and user_id doesn't
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'reviews' AND column_name = 'buyer_id'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'reviews' AND column_name = 'user_id'
+    ) THEN
+        -- Rename buyer_id to user_id
+        ALTER TABLE public.reviews RENAME COLUMN buyer_id TO user_id;
+        RAISE NOTICE 'Renamed buyer_id to user_id in reviews table';
+    END IF;
+END $$;
+
+-- 3. If table doesn't exist at all, create it
 CREATE TABLE IF NOT EXISTS public.reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID NOT NULL,
@@ -20,16 +37,16 @@ CREATE TABLE IF NOT EXISTS public.reviews (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. Enable Row Level Security
+-- 4. Ensure Row Level Security is enabled
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 
--- 4. Drop existing policies if they exist
+-- 5. Drop existing policies if they exist
 DROP POLICY IF EXISTS "public_read_reviews" ON public.reviews;
 DROP POLICY IF EXISTS "buyer_can_review_delivered" ON public.reviews;
 DROP POLICY IF EXISTS "user_update_own_review" ON public.reviews;
 DROP POLICY IF EXISTS "user_delete_own_review" ON public.reviews;
 
--- 5. Create policies
+-- 6. Create policies
 -- Public can read reviews (safe: reviews are public content)
 CREATE POLICY "public_read_reviews"
 ON public.reviews
@@ -63,12 +80,12 @@ ON public.reviews
 FOR DELETE
 USING (auth.uid() = user_id);
 
--- 6. Verify table structure
+-- 7. Verify final table structure
 SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_name = 'reviews'
 AND table_schema = 'public'
 ORDER BY ordinal_position;
 
--- 7. Test query (should work now)
+-- 8. Test query (should work now)
 SELECT * FROM reviews LIMIT 5;
