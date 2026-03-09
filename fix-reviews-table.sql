@@ -32,15 +32,15 @@ CREATE TABLE public.reviews (
 -- Note: This assumes backup table has compatible columns, otherwise data is lost but table structure is correct
 INSERT INTO public.reviews (product_id, user_id, rating, comment, photo_url, user_name, created_at)
 SELECT
-    COALESCE(product_id, gen_random_uuid()) as product_id,
-    COALESCE(user_id, gen_random_uuid()) as user_id,
-    COALESCE(rating, 5) as rating,
-    COALESCE(comment, 'Migrated review') as comment,
-    photo_url,
-    COALESCE(user_name, 'Anonymous') as user_name,
-    COALESCE(created_at, NOW()) as created_at
-FROM reviews_backup
-WHERE EXISTS (SELECT 1 FROM reviews_backup LIMIT 1)
+    COALESCE(rb.product_id, gen_random_uuid()) as product_id,
+    COALESCE(rb.user_id, gen_random_uuid()) as user_id,
+    COALESCE(rb.rating, 5) as rating,
+    COALESCE(rb.comment, 'Migrated review') as comment,
+    rb.photo_url,
+    COALESCE(rb.user_name, 'Anonymous') as user_name,
+    COALESCE(rb.created_at, NOW()) as created_at
+FROM reviews_backup rb
+WHERE EXISTS (SELECT 1 FROM reviews_backup rb2 LIMIT 1)
 ON CONFLICT DO NOTHING;
 
 -- 5. Enable Row Level Security
