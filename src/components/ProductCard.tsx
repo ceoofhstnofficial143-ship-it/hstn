@@ -130,23 +130,11 @@ export default function ProductCard({ product }: ProductCardProps) {
                 {/* Image Container */}
                 <div className="relative h-48 overflow-hidden">
                     {product.image_url ? (
-                        <>
-                            <img
-                                src={product.image_url}
-                                alt={product.title}
-                                className={`w-full h-full object-cover transition-transform duration-300 ${isVisible && product.video_url ? "opacity-0" : "group-hover:scale-105"}`}
-                            />
-                            {product.video_url && isVisible && (
-                                <video
-                                    src={product.video_url}
-                                    autoPlay
-                                    muted
-                                    loop
-                                    playsInline
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                />
-                            )}
-                        </>
+                        <img
+                            src={product.image_url}
+                            alt={product.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
                     ) : (
                         <div className="w-full h-full bg-gray-100 flex items-center justify-center">
                             <span className="text-gray-400 text-sm">No Image</span>
@@ -160,16 +148,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                         </div>
                     </div>
 
-                    {/* Video Badge */}
-                    {product.video_url && (
-                        <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-black/50 text-white backdrop-blur-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-                            </svg>
-                            VID
-                        </div>
-                    )}
-
+                    
                     {/* Wishlist */}
                     <button
                         onClick={handleWishlistToggle}

@@ -27,6 +27,9 @@ export default function ProductPage() {
     const [soldToday, setSoldToday] = useState(0)
     const [viewing, setViewing] = useState(0)
     const [currentImageIndex, setCurrentImageIndex] = useState(0)
+    const [showVideoModal, setShowVideoModal] = useState(false)
+    const [touchStart, setTouchStart] = useState(0)
+    const [touchEnd, setTouchEnd] = useState(0)
 
     // Review state
     const [reviews, setReviews] = useState<any[]>([])
@@ -222,7 +225,33 @@ export default function ProductPage() {
     // Get all images including additional_images
     const allImages = product ? [product.image_url, ...(product.additional_images || [])].filter(Boolean) : []
 
+    // Touch swipe handlers
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(0)
+        setTouchStart(e.targetTouches[0].clientX)
+    }
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX)
+    }
+
+    const handleTouchEnd = () => {
+        if (!touchStart || !touchEnd) return
+        
+        const distance = touchStart - touchEnd
+        const isLeftSwipe = distance > 50
+        const isRightSwipe = distance < -50
+
+        if (isLeftSwipe && currentImageIndex < allImages.length - 1) {
+            setCurrentImageIndex(currentImageIndex + 1)
+        }
+        if (isRightSwipe && currentImageIndex > 0) {
+            setCurrentImageIndex(currentImageIndex - 1)
+        }
+    }
+
     return (
+        <>
         <main className="bg-background min-h-screen">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8">
 
@@ -236,7 +265,12 @@ export default function ProductPage() {
                     {/* LEFT: Image Gallery with Carousel */}
                     <div className="space-y-4">
                         {/* Main Image Carousel */}
-                        <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 group">
+                        <div 
+                            className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 group"
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                        >
                             {allImages.length > 0 ? (
                                 <>
                                     <img
@@ -279,14 +313,14 @@ export default function ProductPage() {
                             )}
                         </div>
                         
-                        {/* Thumbnail Strip */}
+                        {/* Thumbnail Strip - Swipeable */}
                         {allImages.length > 1 && (
-                            <div className="flex gap-2 overflow-x-auto pb-2">
+                            <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory">
                                 {allImages.map((img, idx) => (
                                     <button
                                         key={idx}
                                         onClick={() => setCurrentImageIndex(idx)}
-                                        className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                                        className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all snap-center ${
                                             idx === currentImageIndex ? 'border-black' : 'border-gray-200 hover:border-gray-400'
                                         }`}
                                     >
@@ -296,19 +330,21 @@ export default function ProductPage() {
                             </div>
                         )}
 
-                        {/* Video if available */}
+                        {/* Video Button */}
                         {product.video_url && (
-                            <div className="aspect-video overflow-hidden rounded-xl bg-black">
-                                <video
-                                    src={product.video_url}
-                                    className="w-full h-full object-cover"
-                                    controls
-                                    autoPlay
-                                    loop
-                                    muted
-                                    playsInline
-                                />
-                            </div>
+                            <button
+                                onClick={() => setShowVideoModal(true)}
+                                className="w-full aspect-video rounded-xl bg-black flex items-center justify-center hover:bg-gray-900 transition-colors group"
+                            >
+                                <div className="text-white text-center">
+                                    <div className="w-16 h-16 mx-auto mb-3 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/>
+                                        </svg>
+                                    </div>
+                                    <p className="text-sm font-medium">View Verification Video</p>
+                                </div>
+                            </button>
                         )}
 
                         {/* Trust Score Card */}
@@ -404,10 +440,10 @@ export default function ProductPage() {
                         {/* Purchase Buttons */}
                         <div className="space-y-3 pt-6">
                             <button
-                                disabled
-                                className="luxury-button w-full min-h-[44px] opacity-50 cursor-not-allowed"
+                                onClick={handleOrder}
+                                className="luxury-button w-full min-h-[44px]"
                             >
-                                Coming Soon
+                                Buy Now
                             </button>
 
                             <button
@@ -473,13 +509,44 @@ export default function ProductPage() {
                         Add Cart
                     </button>
                     <button
-                        disabled
-                        className="flex-1 h-12 luxury-button min-h-[44px] opacity-50 cursor-not-allowed"
+                        onClick={handleOrder}
+                        className="flex-1 h-12 luxury-button min-h-[44px]"
                     >
-                        Coming Soon
+                        Buy Now
                     </button>
                 </div>
             </div>
         </main>
+
+        {/* Video Modal */}
+        {showVideoModal && product.video_url && (
+            <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setShowVideoModal(false)}>
+                <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-black rounded-xl overflow-hidden">
+                        <div className="flex justify-between items-center p-4 bg-gray-900">
+                            <h3 className="text-white font-semibold">Verification Video</h3>
+                            <button
+                                onClick={() => setShowVideoModal(false)}
+                                className="text-white hover:text-gray-300 transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <video
+                            src={product.video_url}
+                            className="w-full max-h-[70vh] object-contain"
+                            controls
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                        />
+                    </div>
+                </div>
+            </div>
+        )}
+    </>
     )
 }

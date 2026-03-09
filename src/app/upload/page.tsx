@@ -150,9 +150,31 @@ export default function UploadPage() {
 
     const finalSku = sku || buildSku(user.id)
 
+    // Validate measurements to prevent invalid values
+    const validateMeasurements = () => {
+      const measurements = { bust, waist, hips, length, sleeve }
+      const invalidMeasurements = Object.entries(measurements).filter(([key, value]) => {
+        const num = parseFloat(value)
+        return isNaN(num) || num < 20 || num > 300
+      })
+      
+      if (invalidMeasurements.length > 0) {
+        const invalidNames = invalidMeasurements.map(([key]) => key).join(', ')
+        alert(`Invalid measurements detected: ${invalidNames}\n\nMeasurements must be between 20-300 cm.`)
+        return false
+      }
+      return true
+    }
+
     // HARD BACKEND RULE: Enforce Authenticated Upload (Fabric Video, Size)
     if (uploadMode === "authentication" && (!videoUrl || !bust || !waist || !length)) {
       alert("HARD BLOCK: Authentication Protocol failed. Video Verification and Numeric Measurements are strictly required.")
+      setLoading(false)
+      return
+    }
+
+    // Validate measurements if provided
+    if (!validateMeasurements()) {
       setLoading(false)
       return
     }
