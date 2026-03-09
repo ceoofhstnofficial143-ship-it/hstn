@@ -1,32 +1,23 @@
--- FIX: Supabase Reviews 400 Error
+-- FIX: Supabase Reviews Table - Complete Structure Check & Fix
 -- Run this in your Supabase SQL Editor to fix the reviews table
 
 -- 1. Check current table structure
+SELECT 'Current table structure:' as info;
 SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_name = 'reviews'
 AND table_schema = 'public'
 ORDER BY ordinal_position;
 
--- 2. If table exists with buyer_id instead of user_id, rename the column
-DO $$
-BEGIN
-    -- Check if buyer_id exists and user_id doesn't
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'reviews' AND column_name = 'buyer_id'
-    ) AND NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'reviews' AND column_name = 'user_id'
-    ) THEN
-        -- Rename buyer_id to user_id
-        ALTER TABLE public.reviews RENAME COLUMN buyer_id TO user_id;
-        RAISE NOTICE 'Renamed buyer_id to user_id in reviews table';
-    END IF;
-END $$;
+-- 2. Backup existing data if table exists
+CREATE TEMP TABLE reviews_backup AS
+SELECT * FROM public.reviews
+WHERE EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'reviews');
 
--- 3. If table doesn't exist at all, create it
-CREATE TABLE IF NOT EXISTS public.reviews (
+-- 3. Drop and recreate table with correct structure
+DROP TABLE IF EXISTS public.reviews;
+
+CREATE TABLE public.reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID NOT NULL,
     user_id UUID NOT NULL,
@@ -37,16 +28,37 @@ CREATE TABLE IF NOT EXISTS public.reviews (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Ensure Row Level Security is enabled
+-- 4. Restore data if we had a backup (map old columns to new ones)
+INSERT INTO public.reviews (product_id, user_id, rating, comment, photo_url, user_name, created_at)
+SELECT
+    CASE
+        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews_backup' AND column_name = 'product_id') THEN product_id
+        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews_backup' AND column_name = 'productid') THEN productid
+        ELSE gen_random_uuid() -- fallback
+    END as product_id,
+    CASE
+        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews_backup' AND column_name = 'user_id') THEN user_id
+        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews_backup' AND column_name = 'buyer_id') THEN buyer_id
+        ELSE gen_random_uuid() -- fallback
+    END as user_id,
+    COALESCE(rating, 5) as rating,
+    COALESCE(comment, '') as comment,
+    photo_url,
+    COALESCE(user_name, 'Anonymous') as user_name,
+    COALESCE(created_at, NOW()) as created_at
+FROM reviews_backup
+WHERE EXISTS (SELECT 1 FROM reviews_backup LIMIT 1);
+
+-- 5. Enable Row Level Security
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 
--- 5. Drop existing policies if they exist
+-- 6. Drop existing policies if they exist
 DROP POLICY IF EXISTS "public_read_reviews" ON public.reviews;
 DROP POLICY IF EXISTS "buyer_can_review_delivered" ON public.reviews;
 DROP POLICY IF EXISTS "user_update_own_review" ON public.reviews;
 DROP POLICY IF EXISTS "user_delete_own_review" ON public.reviews;
 
--- 6. Create policies
+-- 7. Create policies
 -- Public can read reviews (safe: reviews are public content)
 CREATE POLICY "public_read_reviews"
 ON public.reviews
@@ -80,12 +92,18 @@ ON public.reviews
 FOR DELETE
 USING (auth.uid() = user_id);
 
--- 7. Verify final table structure
+-- 8. Clean up backup table
+DROP TABLE IF EXISTS reviews_backup;
+
+-- 9. Verify final table structure
+SELECT 'Final table structure:' as info;
 SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_name = 'reviews'
 AND table_schema = 'public'
 ORDER BY ordinal_position;
 
--- 8. Test query (should work now)
-SELECT * FROM reviews LIMIT 5;
+-- 10. Test query (should work now)
+SELECT 'Test query result:' as info;
+SELECT COUNT(*) as review_count FROM reviews;
+SELECT * FROM reviews LIMIT 3;
