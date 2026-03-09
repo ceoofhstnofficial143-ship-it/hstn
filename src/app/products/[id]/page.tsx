@@ -301,7 +301,7 @@ export default function ProductPage() {
     // Get all images including additional_images
     const allImages = product ? [product.image_url, ...(product.additional_images || [])].filter(Boolean) : []
 
-    // Touch swipe handlers
+    // Enhanced touch swipe handlers for fashion marketplace
     const handleTouchStart = (e: React.TouchEvent) => {
         setTouchEnd(0)
         setTouchStart(e.targetTouches[0].clientX)
@@ -326,10 +326,17 @@ export default function ProductPage() {
         }
     }
 
-    // Image zoom handler
+    // Image zoom handler with smooth transitions
     const handleImageZoom = (index: number) => {
         setZoomImageIndex(index)
         setShowImageZoom(true)
+    }
+
+    // Lazy loading for image gallery
+    const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set())
+    
+    const handleImageLoad = (index: number) => {
+        setLoadedImages(prev => new Set(prev).add(index))
     }
     return (
         <>
@@ -345,7 +352,7 @@ export default function ProductPage() {
 
                     {/* LEFT: Image Gallery with Carousel */}
                     <div className="space-y-4">
-                        {/* Main Image Carousel */}
+                        {/* Main Image Carousel - Fashion Marketplace Style */}
                         <div 
                             className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 group cursor-pointer"
                             onTouchStart={handleTouchStart}
@@ -355,36 +362,63 @@ export default function ProductPage() {
                         >
                             {allImages.length > 0 ? (
                                 <>
-                                    <img
-                                        src={allImages[currentImageIndex]}
-                                        alt={`${product.title} - Photo ${currentImageIndex + 1}`}
-                                        className="w-full h-full object-cover transition-transform duration-500"
-                                    />
+                                    {/* Main Image with Lazy Loading */}
+                                    <div className="relative w-full h-full">
+                                        {!loadedImages.has(currentImageIndex) && (
+                                            <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
+                                                <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                                            </div>
+                                        )}
+                                        <img
+                                            src={allImages[currentImageIndex]}
+                                            alt={`${product.title} - Photo ${currentImageIndex + 1}`}
+                                            className={`w-full h-full object-cover transition-all duration-500 ${
+                                                loadedImages.has(currentImageIndex) ? 'opacity-100' : 'opacity-0'
+                                            }`}
+                                            loading="eager"
+                                            onLoad={() => handleImageLoad(currentImageIndex)}
+                                            sizes="(max-width: 768px) 100vw, 50vw"
+                                        />
+                                    </div>
                                     
-                                    {/* Navigation Arrows */}
+                                    {/* Premium Navigation Arrows */}
                                     {allImages.length > 1 && (
                                         <>
                                             <button
-                                                onClick={() => setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1)}
-                                                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1)
+                                                }}
+                                                className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/95 hover:bg-white rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 transform hover:scale-110"
                                             >
-                                                <ChevronLeft className="w-5 h-5 text-gray-800" />
+                                                <ChevronLeft className="w-6 h-6 text-gray-800" />
                                             </button>
                                             <button
-                                                onClick={() => setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1)
+                                                }}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/95 hover:bg-white rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 transform hover:scale-110"
                                             >
-                                                <ChevronRight className="w-5 h-5 text-gray-800" />
+                                                <ChevronRight className="w-6 h-6 text-gray-800" />
                                             </button>
                                         </>
                                     )}
                                     
-                                    {/* Image Counter */}
+                                    {/* Premium Image Counter */}
                                     {allImages.length > 1 && (
-                                        <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-3 py-1 rounded-full">
+                                        <div className="absolute top-4 right-4 bg-black/70 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-full font-medium">
                                             {currentImageIndex + 1} / {allImages.length}
                                         </div>
                                     )}
+
+                                    {/* Zoom Indicator */}
+                                    <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm text-gray-800 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                                        </svg>
+                                        Tap to zoom
+                                    </div>
                                 </>
                             ) : (
                                 <img
@@ -394,6 +428,35 @@ export default function ProductPage() {
                                 />
                             )}
                         </div>
+
+                        {/* Thumbnail Gallery - Fashion Marketplace Style */}
+                        {allImages.length > 1 && (
+                            <div className="grid grid-cols-4 gap-2">
+                                {allImages.map((img, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setCurrentImageIndex(idx)}
+                                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 ${
+                                            idx === currentImageIndex 
+                                                ? 'border-black shadow-lg scale-105' 
+                                                : 'border-gray-200 hover:border-gray-400 hover:scale-105'
+                                        }`}
+                                    >
+                                        <img
+                                            src={img}
+                                            alt={`Thumbnail ${idx + 1}`}
+                                            className="w-full h-full object-cover"
+                                            loading="lazy"
+                                        />
+                                        {idx === currentImageIndex && (
+                                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                                <div className="w-2 h-2 bg-white rounded-full" />
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         
                         {/* Thumbnail Strip - Swipeable */}
                         {allImages.length > 1 && (

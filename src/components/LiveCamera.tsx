@@ -75,26 +75,31 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
         if (!videoRef.current) return
         const canvas = document.createElement("canvas")
         
-        // Auto-center crop to perfect square
-        const size = Math.min(videoRef.current.videoWidth, videoRef.current.videoHeight)
-        canvas.width = size
-        canvas.height = size
+        // HD Fashion Marketplace Quality - 1600px square for premium fashion
+        const targetSize = 1600
+        canvas.width = targetSize
+        canvas.height = targetSize
         
         const ctx = canvas.getContext("2d")
         if (ctx) {
-            // Professional lighting correction
+            // Professional fashion photography lighting correction
             ctx.filter = "brightness(1.1) contrast(1.15) saturate(1.05)"
             
-            // Center crop the video to square
-            const offsetX = (videoRef.current.videoWidth - size) / 2
-            const offsetY = (videoRef.current.videoHeight - size) / 2
+            // Calculate center crop from video source
+            const sourceSize = Math.min(videoRef.current.videoWidth, videoRef.current.videoHeight)
+            const offsetX = (videoRef.current.videoWidth - sourceSize) / 2
+            const offsetY = (videoRef.current.videoHeight - sourceSize) / 2
             
+            // Draw high-quality image
+            ctx.imageSmoothingEnabled = true
+            ctx.imageSmoothingQuality = 'high'
             ctx.drawImage(
                 videoRef.current,
-                offsetX, offsetY, size, size,  // Source rectangle
-                0, 0, size, size              // Destination rectangle
+                offsetX, offsetY, sourceSize, sourceSize,  // Source rectangle
+                0, 0, targetSize, targetSize              // HD destination
             )
             
+            // Convert to WebP for fashion marketplace (75% quality - optimal balance)
             canvas.toBlob((blob) => {
                 if (blob) {
                     const newPhotos = [...capturedPhotos, blob]
@@ -105,7 +110,7 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
                         setStep(6) // Move to video
                     }
                 }
-            }, "image/jpeg", 0.9)
+            }, "image/webp", 0.75)
         }
     }
 
