@@ -161,10 +161,24 @@ export default function UploadPage() {
         video.src = videoUrl
         
         return new Promise((resolve) => {
+          let isResolved = false
+          
+          const cleanup = () => {
+            if (!isResolved) {
+              isResolved = true
+              video.pause()
+              video.src = ''
+              video.load()
+            }
+          }
+          
           video.onloadedmetadata = () => {
+            if (isResolved) return
+            
             // Check duration (must be at least 8 seconds)
             if (video.duration < 8) {
               alert("Video verification failed: Video must be at least 8 seconds long.")
+              cleanup()
               resolve(false)
               return
             }
@@ -172,6 +186,7 @@ export default function UploadPage() {
             // Check if it's actually a video file
             if (video.videoWidth === 0 || video.videoHeight === 0) {
               alert("Video verification failed: Invalid video file detected.")
+              cleanup()
               resolve(false)
               return
             }
@@ -179,26 +194,34 @@ export default function UploadPage() {
             // Check for reasonable dimensions (not too small)
             if (video.videoWidth < 320 || video.videoHeight < 240) {
               alert("Video verification failed: Video quality too low.")
+              cleanup()
               resolve(false)
               return
             }
             
+            cleanup()
             resolve(true)
           }
           
           video.onerror = () => {
+            if (isResolved) return
             alert("Video verification failed: Could not load video file.")
+            cleanup()
             resolve(false)
           }
           
-          // Timeout after 5 seconds
+          // Timeout after 10 seconds (increased from 5)
           setTimeout(() => {
-            alert("Video verification failed: Video validation timeout.")
-            resolve(false)
-          }, 5000)
+            if (!isResolved) {
+              alert("Video verification failed: Video validation timeout. Please try uploading again.")
+              cleanup()
+              resolve(false)
+            }
+          }, 10000)
         })
       } catch (error) {
-        alert("Video verification failed: Unexpected error.")
+        console.error("Video validation error:", error)
+        alert("Video verification failed: Unable to validate video.")
         return false
       }
     }
