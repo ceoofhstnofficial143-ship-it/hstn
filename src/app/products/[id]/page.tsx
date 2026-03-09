@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
 import { getTrustTier } from "@/lib/trustTier"
@@ -121,70 +121,71 @@ export default function ProductPage() {
         }
     }, [product?.trust?.score])
 
-    useEffect(() => {
-        const fetchRecommendations = async () => {
-            if (!product || recommendedProducts.length > 0) return // Don't refetch if already loaded
+    // Stable recommendation fetch with useCallback
+    const fetchRecommendations = useCallback(async () => {
+        if (!product || recommendedProducts.length > 0) return
 
-            try {
-                // Get products with same category, excluding current product
-                const { data: categoryMatches } = await supabase
-                    .from("products")
-                    .select(`
-                        id,
-                        title,
-                        price,
-                        image_url,
-                        category,
-                        color_verified,
-                        additional_images,
-                        user_id,
-                        profiles:user_id(username)
-                    `)
-                    .eq("category", product.category)
-                    .neq("id", product.id)
-                    .eq("admin_status", "approved")
-                    .limit(4)
+        try {
+            // Get products with same category, excluding current product
+            const { data: categoryMatches } = await supabase
+                .from("products")
+                .select(`
+                    id,
+                    title,
+                    price,
+                    image_url,
+                    category,
+                    color_verified,
+                    additional_images,
+                    user_id,
+                    profiles:user_id(username)
+                `)
+                .eq("category", product.category)
+                .neq("id", product.id)
+                .eq("admin_status", "approved")
+                .limit(4)
 
-                // Get products in similar price range (±30%)
-                const priceMin = product.price * 0.7
-                const priceMax = product.price * 1.3
-                const { data: priceMatches } = await supabase
-                    .from("products")
-                    .select(`
-                        id,
-                        title,
-                        price,
-                        image_url,
-                        category,
-                        color_verified,
-                        additional_images,
-                        user_id,
-                        profiles:user_id(username)
-                    `)
-                    .gte("price", priceMin)
-                    .lte("price", priceMax)
-                    .neq("id", product.id)
-                    .eq("admin_status", "approved")
-                    .limit(4)
+            // Get products in similar price range (±30%)
+            const priceMin = product.price * 0.7
+            const priceMax = product.price * 1.3
+            const { data: priceMatches } = await supabase
+                .from("products")
+                .select(`
+                    id,
+                    title,
+                    price,
+                    image_url,
+                    category,
+                    color_verified,
+                    additional_images,
+                    user_id,
+                    profiles:user_id(username)
+                `)
+                .gte("price", priceMin)
+                .lte("price", priceMax)
+                .neq("id", product.id)
+                .eq("admin_status", "approved")
+                .limit(4)
 
-                // Combine and deduplicate recommendations
-                const allRecommendations = [...(categoryMatches || []), ...(priceMatches || [])]
-                const uniqueRecommendations = allRecommendations.filter((rec, index, self) => 
-                    index === self.findIndex(r => r.id === rec.id)
-                )
+            // Combine and deduplicate recommendations
+            const allRecommendations = [...(categoryMatches || []), ...(priceMatches || [])]
+            const uniqueRecommendations = allRecommendations.filter((rec, index, self) => 
+                index === self.findIndex(r => r.id === rec.id)
+            )
 
-                // Limit to 6 recommendations and randomize order slightly
-                const shuffled = uniqueRecommendations.sort(() => 0.5 - Math.random())
-                setRecommendedProducts(shuffled.slice(0, 6))
+            // Limit to 6 recommendations and randomize order slightly
+            const shuffled = uniqueRecommendations.sort(() => 0.5 - Math.random())
+            setRecommendedProducts(shuffled.slice(0, 6))
 
-            } catch (error) {
-                console.error("Error fetching recommendations:", error)
-                setRecommendedProducts([]) // Set empty array on error
-            }
+        } catch (error) {
+            console.error("Error fetching recommendations:", error)
+            setRecommendedProducts([])
         }
+    }, [product?.id, product?.category, product?.price, recommendedProducts.length])
 
+    useEffect(() => {
         fetchRecommendations()
-    }, [product?.id]) // Changed from [product] to [product?.id] to prevent re-renders
+    }, [fetchRecommendations])
 
     const handleAddToCart = () => {
         const cart = JSON.parse(localStorage.getItem("hstn-cart") || "[]")
