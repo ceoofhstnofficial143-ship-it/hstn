@@ -28,26 +28,20 @@ CREATE TABLE public.reviews (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Restore data if we had a backup (map old columns to new ones)
+-- 4. Restore data if we had a backup (simple approach - insert what we can)
+-- Note: This assumes backup table has compatible columns, otherwise data is lost but table structure is correct
 INSERT INTO public.reviews (product_id, user_id, rating, comment, photo_url, user_name, created_at)
 SELECT
-    CASE
-        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews_backup' AND column_name = 'product_id') THEN rb.product_id
-        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews_backup' AND column_name = 'productid') THEN rb.productid
-        ELSE gen_random_uuid() -- fallback
-    END as product_id,
-    CASE
-        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews_backup' AND column_name = 'user_id') THEN rb.user_id
-        WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reviews_backup' AND column_name = 'buyer_id') THEN rb.buyer_id
-        ELSE gen_random_uuid() -- fallback
-    END as user_id,
-    COALESCE(rb.rating, 5) as rating,
-    COALESCE(rb.comment, '') as comment,
-    rb.photo_url,
-    COALESCE(rb.user_name, 'Anonymous') as user_name,
-    COALESCE(rb.created_at, NOW()) as created_at
-FROM reviews_backup rb
-WHERE EXISTS (SELECT 1 FROM reviews_backup LIMIT 1);
+    COALESCE(product_id, gen_random_uuid()) as product_id,
+    COALESCE(user_id, gen_random_uuid()) as user_id,
+    COALESCE(rating, 5) as rating,
+    COALESCE(comment, 'Migrated review') as comment,
+    photo_url,
+    COALESCE(user_name, 'Anonymous') as user_name,
+    COALESCE(created_at, NOW()) as created_at
+FROM reviews_backup
+WHERE EXISTS (SELECT 1 FROM reviews_backup LIMIT 1)
+ON CONFLICT DO NOTHING;
 
 -- 5. Enable Row Level Security
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
