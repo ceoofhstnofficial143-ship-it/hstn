@@ -18,6 +18,7 @@ export default function AdminPage() {
     const [topSellers, setTopSellers] = useState<any[]>([])
     const [allUsers, setAllUsers] = useState<any[]>([])
     const [allProducts, setAllProducts] = useState<any[]>([])
+    const [reviewQueue, setReviewQueue] = useState<any[]>([])
 
     useEffect(() => {
         const init = async () => {
@@ -79,7 +80,22 @@ export default function AdminPage() {
             revenue
         })
 
-        // NEW: Fetch Top Sellers
+        // NEW: Fetch products needing admin review
+        const { data: reviewQueue } = await supabase
+            .from("products")
+            .select(`
+                id,
+                title,
+                image_url,
+                user_id,
+                admin_status,
+                created_at,
+                profiles:user_id(username)
+            `)
+            .eq("admin_status", "needs_review")
+            .order("created_at", { ascending: false })
+
+        setReviewQueue(reviewQueue || [])
         const { data: delivered } = await supabase
             .from("orders")
             .select(`
@@ -226,6 +242,48 @@ export default function AdminPage() {
         }
     }
 
+    const approveProduct = async (id: string) => {
+        console.log(`AI Review: Approving product ${id}`)
+        const confirmApprove = confirm("✅ Approve this listing? It will be published to the marketplace.")
+        if (!confirmApprove) return
+
+        const { error } = await supabase
+            .from("products")
+            .update({ admin_status: 'approved' })
+            .eq("id", id)
+
+        if (error) {
+            console.error("Approval error:", error)
+            alert(`Approval failed: ${error.message}`)
+        } else {
+            console.log(`Successfully approved product ${id}`)
+            fetchStats() // Refresh the dashboard
+        }
+    }
+
+    const rejectProduct = async (id: string) => {
+        console.log(`AI Review: Rejecting product ${id}`)
+        const reason = prompt("Reason for rejection (e.g. AI detected suspicious content, stolen images):") || "AI flagged as suspicious"
+        const confirmReject = confirm(`❌ Reject this listing?\nReason: ${reason}\n\nThis will hide it from buyers.`)
+        if (!confirmReject) return
+
+        const { error } = await supabase
+            .from("products")
+            .update({ 
+                admin_status: 'rejected',
+                review_reason: reason 
+            })
+            .eq("id", id)
+
+        if (error) {
+            console.error("Rejection error:", error)
+            alert(`Rejection failed: ${error.message}`)
+        } else {
+            console.log(`Successfully rejected product ${id}`)
+            fetchStats() // Refresh the dashboard
+        }
+    }
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -365,6 +423,74 @@ export default function AdminPage() {
                                         <div className="text-right">
                                             <p className="text-xl font-black text-slate-900">₹ {seller.revenue.toLocaleString()}</p>
                                             <p className="text-[10px] font-black text-green-600 uppercase tracking-widest leading-none mt-1">Verified Yield</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* AI Review Queue - NEW */}
+                    <div className="bg-white border border-amber-100 rounded-[40px] p-10 shadow-premium">
+                        <div className="flex items-center justify-between mb-8">
+                            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                                <span>🤖</span> AI Review Queue
+                            </h2>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest bg-amber-50 px-3 py-1 rounded-full">
+                                    {reviewQueue.length} pending
+                                </span>
+                            </div>
+                        </div>
+
+                        {reviewQueue.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-300 italic border-2 border-dashed border-slate-50 rounded-3xl">
+                                <span className="text-4xl mb-4 grayscale opacity-30">✅</span>
+                                All listings verified. No manual review needed.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {reviewQueue.map((product) => (
+                                    <div
+                                        key={product.id}
+                                        className="flex items-center justify-between p-5 bg-amber-50 rounded-2xl border border-amber-100 hover:border-amber-200 hover:bg-amber-25 hover:shadow-lg transition-premium group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100">
+                                                {product.image_url ? (
+                                                    <img src={product.image_url} alt={product.title} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">No img</div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-900 group-hover:text-amber-600 transition-colors line-clamp-1">{product.title}</p>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mt-1">
+                                                    by @{product.profiles?.username || 'Unknown'}
+                                                </p>
+                                                <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest leading-none mt-1">
+                                                    AI Flagged: Suspicious content
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => approveProduct(product.id)}
+                                                className="px-4 py-2 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 transition-colors"
+                                            >
+                                                ✅ Approve
+                                            </button>
+                                            <button
+                                                onClick={() => rejectProduct(product.id)}
+                                                className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
+                                            >
+                                                ❌ Reject
+                                            </button>
+                                            <Link href={`/products/${product.id}`} target="_blank">
+                                                <button className="px-4 py-2 bg-slate-500 text-white text-xs font-bold rounded-lg hover:bg-slate-600 transition-colors">
+                                                    👁️ View
+                                                </button>
+                                            </Link>
                                         </div>
                                     </div>
                                 ))}

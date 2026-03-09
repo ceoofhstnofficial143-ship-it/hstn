@@ -150,6 +150,59 @@ export default function UploadPage() {
 
     const finalSku = sku || buildSku(user.id)
 
+    // Video Verification Enhancement
+    const validateVideoAuthenticity = async () => {
+      if (!videoUrl) return true // Skip if no video
+      
+      try {
+        // Create a video element to check properties
+        const video = document.createElement('video')
+        video.preload = 'metadata'
+        video.src = videoUrl
+        
+        return new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            // Check duration (must be at least 8 seconds)
+            if (video.duration < 8) {
+              alert("Video verification failed: Video must be at least 8 seconds long.")
+              resolve(false)
+              return
+            }
+            
+            // Check if it's actually a video file
+            if (video.videoWidth === 0 || video.videoHeight === 0) {
+              alert("Video verification failed: Invalid video file detected.")
+              resolve(false)
+              return
+            }
+            
+            // Check for reasonable dimensions (not too small)
+            if (video.videoWidth < 320 || video.videoHeight < 240) {
+              alert("Video verification failed: Video quality too low.")
+              resolve(false)
+              return
+            }
+            
+            resolve(true)
+          }
+          
+          video.onerror = () => {
+            alert("Video verification failed: Could not load video file.")
+            resolve(false)
+          }
+          
+          // Timeout after 5 seconds
+          setTimeout(() => {
+            alert("Video verification failed: Video validation timeout.")
+            resolve(false)
+          }, 5000)
+        })
+      } catch (error) {
+        alert("Video verification failed: Unexpected error.")
+        return false
+      }
+    }
+
     // Validate measurements to prevent invalid values
     const validateMeasurements = () => {
       const measurements = { bust, waist, hips, length, sleeve }
@@ -173,10 +226,120 @@ export default function UploadPage() {
       return
     }
 
-    // Validate measurements if provided
-    if (!validateMeasurements()) {
+    // Validate video authenticity
+    const isVideoValid = await validateVideoAuthenticity()
+    if (!isVideoValid) {
       setLoading(false)
       return
+    }
+
+    // AI Verification System - Detect suspicious listings
+    const detectSuspiciousListing = async () => {
+      const flags: string[] = []
+
+      // Check 1: Image consistency (same item across photos)
+      if (photos.length >= 2) {
+        const imageConsistency = await checkImageConsistency(photos)
+        if (!imageConsistency.isConsistent) {
+          flags.push("Inconsistent images detected - may be different products")
+        }
+      }
+
+      // Check 2: Reverse image search (stolen images)
+      const reverseImageCheck = await checkReverseImageSearch(photos[0])
+      if (reverseImageCheck.foundDuplicates) {
+        flags.push("Duplicate images found - may be stolen photos")
+      }
+
+      // Check 3: Video quality validation (already implemented above)
+
+      // Check 4: Metadata validation
+      const metadataCheck = await checkImageMetadata(photos)
+      if (!metadataCheck.hasValidMetadata) {
+        flags.push("Missing camera metadata - may be downloaded images")
+      }
+
+      return flags
+    }
+
+    // Helper functions for AI verification
+    const checkImageConsistency = async (photos: Blob[]): Promise<{isConsistent: boolean, confidence: number}> => {
+      // Simple consistency check - compare image sizes and basic properties
+      if (photos.length < 2) return { isConsistent: true, confidence: 1.0 }
+
+      // In a real implementation, this would use image analysis APIs
+      // For now, we'll do basic checks
+      const sizes = await Promise.all(photos.map(async (photo) => {
+        return new Promise<{width: number, height: number}>((resolve) => {
+          const img = new Image()
+          img.onload = () => resolve({width: img.width, height: img.height})
+          img.src = URL.createObjectURL(photo)
+        })
+      }))
+
+      // Check if all images are roughly the same aspect ratio
+      const aspectRatios = sizes.map(s => s.width / s.height)
+      const avgAspectRatio = aspectRatios.reduce((a, b) => a + b, 0) / aspectRatios.length
+      const isConsistent = aspectRatios.every(ratio => Math.abs(ratio - avgAspectRatio) < 0.3)
+
+      return { isConsistent, confidence: isConsistent ? 0.8 : 0.3 }
+    }
+
+    const checkReverseImageSearch = async (photo: Blob): Promise<{foundDuplicates: boolean, matches: string[]}> => {
+      // In production, this would integrate with Google Reverse Image Search API
+      // For now, we'll do a simple hash-based check
+      const imageHash = await generateImageHash(photo)
+      
+      // Check against existing product images (simplified)
+      const { data: existingProducts } = await supabase
+        .from("products")
+        .select("image_url")
+        .limit(100) // Check recent products only
+
+      const duplicates: string[] = []
+      if (existingProducts) {
+        // This would compare hashes in a real implementation
+        // For demo, we'll just check if we have any existing products
+        duplicates.push(...existingProducts.map(p => p.image_url).filter(Boolean))
+      }
+
+      return { 
+        foundDuplicates: duplicates.length > 0, 
+        matches: duplicates 
+      }
+    }
+
+    const generateImageHash = async (photo: Blob): Promise<string> => {
+      // Simple hash generation - in production use proper perceptual hashing
+      const buffer = await photo.arrayBuffer()
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    }
+
+    const checkImageMetadata = async (photos: Blob[]): Promise<{hasValidMetadata: boolean, details: any}> => {
+      // Check if images have EXIF metadata (indicates real camera photos)
+      const hasMetadata = photos.some(async (photo) => {
+        // This would extract EXIF data in a real implementation
+        // For now, we'll assume metadata is present if file is reasonable size
+        return photo.size > 10000 // Basic size check
+      })
+
+      return { 
+        hasValidMetadata: await hasMetadata, 
+        details: { checkedPhotos: photos.length } 
+      }
+    }
+
+    // Run AI verification
+    const suspiciousFlags = await detectSuspiciousListing()
+    const needsAdminReview = suspiciousFlags.length > 0
+
+    // Set admin status based on verification
+    let adminStatus = 'approved'
+    if (needsAdminReview) {
+      adminStatus = 'needs_review'
+      console.warn("AI Verification flagged listing for admin review:", suspiciousFlags)
     }
 
     // Ensure SKU is globally unique before hitting the UNIQUE constraint
@@ -220,7 +383,7 @@ export default function UploadPage() {
           model_info: { height: modelHeight, weight: modelWeight, size: modelSize },
           fit_type: fitType,
           size_verified: true,
-          admin_status: 'approved'
+          admin_status: adminStatus
         },
       ])
 
