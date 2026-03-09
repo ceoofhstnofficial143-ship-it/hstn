@@ -182,7 +182,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
                     {/* Request Button */}
                     <div onClick={(e) => e.preventDefault()}>
-                        <SimplePurchaseRequestButton product={product} user={user} />
+                        <SimplePurchaseRequestButton product={product} />
                     </div>
                 </div>
             </Link>

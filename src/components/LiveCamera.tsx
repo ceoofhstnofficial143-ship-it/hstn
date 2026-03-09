@@ -40,7 +40,12 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
         setCameraError(null)
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+                video: { 
+                    facingMode: { exact: "environment" }, 
+                    width: { ideal: 1920 }, 
+                    height: { ideal: 1080 },
+                    frameRate: { ideal: 30 }
+                },
                 audio: false
             })
             if (videoRef.current) {
@@ -69,11 +74,27 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
     const capturePhoto = () => {
         if (!videoRef.current) return
         const canvas = document.createElement("canvas")
-        canvas.width = videoRef.current.videoWidth
-        canvas.height = videoRef.current.videoHeight
+        
+        // Auto-center crop to perfect square
+        const size = Math.min(videoRef.current.videoWidth, videoRef.current.videoHeight)
+        canvas.width = size
+        canvas.height = size
+        
         const ctx = canvas.getContext("2d")
         if (ctx) {
-            ctx.drawImage(videoRef.current, 0, 0)
+            // Professional lighting correction
+            ctx.filter = "brightness(1.1) contrast(1.15) saturate(1.05)"
+            
+            // Center crop the video to square
+            const offsetX = (videoRef.current.videoWidth - size) / 2
+            const offsetY = (videoRef.current.videoHeight - size) / 2
+            
+            ctx.drawImage(
+                videoRef.current,
+                offsetX, offsetY, size, size,  // Source rectangle
+                0, 0, size, size              // Destination rectangle
+            )
+            
             canvas.toBlob((blob) => {
                 if (blob) {
                     const newPhotos = [...capturedPhotos, blob]
@@ -84,7 +105,7 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
                         setStep(6) // Move to video
                     }
                 }
-            }, "image/jpeg", 0.95)
+            }, "image/jpeg", 0.9)
         }
     }
 
