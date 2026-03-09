@@ -1,10 +1,11 @@
 {
-  "name": "HSTN Fashion Marketplace",
+  "name": "HSTN",
   "short_name": "HSTN",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#d4a63c",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icon-192.png",

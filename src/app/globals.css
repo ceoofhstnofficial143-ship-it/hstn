@@ -3,6 +3,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Mobile Touch Performance */
+html, body {
+  touch-action: manipulation;
+}
+
 :root {
   /* Colors - Light (Ivory/Charcoal/Gold) */
   --background: #FCFBF7;
