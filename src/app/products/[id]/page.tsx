@@ -64,21 +64,27 @@ export default function ProductPage() {
                     setProduct({ ...p, trust: { score: 50, verified: false } })
                 }
 
-                // Fetch real reviews
-                const { data: revs } = await supabase
-                    .from("reviews")
-                    .select("*")
-                    .eq("product_id", id)
-                    .order("created_at", { ascending: false })
+                // Fetch real reviews with error handling
+                try {
+                    const { data: revs } = await supabase
+                        .from("reviews")
+                        .select("*")
+                        .eq("product_id", id)
+                        .order("created_at", { ascending: false })
 
-                if (revs) {
-                    setReviews(revs)
-                    if (revs.length > 0) {
-                        const total = revs.reduce((sum, r) => sum + r.rating, 0)
-                        setAverageRating(total / revs.length)
-                    } else {
-                        setAverageRating(0)
+                    if (revs) {
+                        setReviews(revs)
+                        if (revs.length > 0) {
+                            const total = revs.reduce((sum, r) => sum + r.rating, 0)
+                            setAverageRating(total / revs.length)
+                        } else {
+                            setAverageRating(0)
+                        }
                     }
+                } catch (error) {
+                    console.warn("Reviews fetch failed:", error)
+                    setReviews([]) // Fallback to empty reviews
+                    setAverageRating(0)
                 }
 
                 // Placeholder data for social proof and urgency
@@ -117,7 +123,7 @@ export default function ProductPage() {
 
     useEffect(() => {
         const fetchRecommendations = async () => {
-            if (!product) return
+            if (!product || recommendedProducts.length > 0) return // Don't refetch if already loaded
 
             try {
                 // Get products with same category, excluding current product
@@ -178,7 +184,7 @@ export default function ProductPage() {
         }
 
         fetchRecommendations()
-    }, [product])
+    }, [product?.id]) // Changed from [product] to [product?.id] to prevent re-renders
 
     const handleAddToCart = () => {
         const cart = JSON.parse(localStorage.getItem("hstn-cart") || "[]")
