@@ -39,6 +39,9 @@ export default function ProductPage() {
     const [newReview, setNewReview] = useState({ rating: 5, comment: "", photo_url: "" })
     const [submittingReview, setSubmittingReview] = useState(false)
 
+    // Lazy loading for image gallery
+    const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set())
+
     useEffect(() => {
         const run = async () => {
             if (!id) return
