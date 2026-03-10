@@ -346,9 +346,6 @@ export default function ProductPage() {
         setZoomImageIndex(index)
         setShowImageZoom(true)
     }
-
-    // Lazy loading for image gallery
-    const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set())
     
     const handleImageLoad = (index: number) => {
         setLoadedImages(prev => new Set(prev).add(index))
