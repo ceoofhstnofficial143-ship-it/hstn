@@ -10,7 +10,7 @@ interface PurchaseRequestButtonProps {
         title: string
         price: number
         seller_id: string
-        user: {
+        profiles: {
             username: string
         }
     }

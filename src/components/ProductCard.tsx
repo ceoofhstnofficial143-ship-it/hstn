@@ -18,7 +18,7 @@ interface ProductCardProps {
         category?: string
         user_id: string
         seller_id: string
-        user: {
+        profiles: {
             username: string
         }
         trust?: {

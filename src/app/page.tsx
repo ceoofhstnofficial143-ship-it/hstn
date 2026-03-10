@@ -14,7 +14,10 @@ export default function Home() {
   const fetchProducts = async () => {
     const { data, error } = await supabase
       .from("products")
-      .select("*")
+      .select(`
+        *,
+        profiles:user_id(username)
+      `)
       .eq("admin_status", "approved")
       .order("created_at", { ascending: false })
 
