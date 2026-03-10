@@ -204,7 +204,7 @@ export default function Home() {
             </div>
 
             <div className="luxury-card aspect-[4/3] bg-white/5 border-white/10 backdrop-blur-xl p-4 flex items-center justify-center relative">
-              <div className="w-full h-full rounded-2xl bg-gradient-to-br from-black to-gray-900 overflow-hidden relative flex items-center justify-center">
+              <div className="w-full h-full rounded-2xl bg-gradient-to-br from-black to-gray-900 overflow-hidden flex items-center justify-center">
                 <div className="text-center text-white/60">
                   <div className="w-16 h-16 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -215,11 +215,11 @@ export default function Home() {
                   <p className="text-xs text-white/40">Coming Soon</p>
                 </div>
               </div>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12">
-                  <span className="text-6xl mb-6">🛡️</span>
-                  <h3 className="text-h2 text-white">Verified Verification</h3>
-                  <p className="text-caption text-primary font-bold uppercase tracking-widest mt-4">Standard on all HSTN SKUs</p>
-                </div>
+
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12">
+                <span className="text-6xl mb-6">🛡️</span>
+                <h3 className="text-h2 text-white">Verified Verification</h3>
+                <p className="text-caption text-primary font-bold uppercase tracking-widest mt-4">Standard on all HSTN SKUs</p>
               </div>
             </div>
           </div>
