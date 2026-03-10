@@ -46,7 +46,12 @@ export default function ProductPage() {
                 .from("products")
                 .select("*")
                 .eq("id", id)
-                .single()
+                .maybeSingle()
+
+            if (!p) {
+                setLoading(false)
+                return
+            }
 
             if (p) {
                 // Try to fetch trust score, but don't fail if it doesn't exist
@@ -772,6 +777,10 @@ export default function ProductPage() {
                             loop
                             muted
                             playsInline
+                            onError={(e) => {
+                                console.log('Video failed to load:', product.video_url);
+                                e.currentTarget.style.display = 'none';
+                            }}
                         />
                     </div>
                 </div>
