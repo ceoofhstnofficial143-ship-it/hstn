@@ -39,15 +39,31 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
     const startCamera = async () => {
         setCameraError(null)
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { 
-                    facingMode: { exact: "environment" }, 
-                    width: { ideal: 1920 }, 
-                    height: { ideal: 1080 },
-                    frameRate: { ideal: 30 }
-                },
-                audio: false
-            })
+            // Try rear camera first, fallback to front camera
+            let stream = null
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: { exact: "environment" }, 
+                        width: { ideal: 1920 }, 
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: false
+                })
+            } catch (rearError) {
+                console.log("Rear camera not available, trying front camera")
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: "user", 
+                        width: { ideal: 1920 }, 
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: false
+                })
+            }
+            
             if (videoRef.current) {
                 videoRef.current.srcObject = stream
                 streamRef.current = stream
@@ -58,7 +74,7 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
             if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                 setCameraError("Camera hardware not found on this device.")
             } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                setCameraError("Camera access denied. Please enable it in browser settings.")
+                setCameraError("Camera access denied. Please enable it in browser settings and refresh the page.")
             } else {
                 setCameraError("Unable to initialize HSTN Secure Camera.")
             }
@@ -196,6 +212,15 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
                         <p className="text-caption text-red-500/80 leading-relaxed uppercase tracking-widest font-bold">{cameraError}</p>
                     </div>
                     <div className="pt-4 space-y-4">
+                        <div className="bg-white/5 rounded-xl p-4 text-left">
+                            <p className="text-[10px] text-white/60 mb-3 font-bold uppercase tracking-widest">How to Enable Camera:</p>
+                            <ul className="text-[9px] text-white/40 space-y-2">
+                                <li>• Click the camera icon 📷 in your browser's address bar</li>
+                                <li>• Select "Allow" for camera permissions</li>
+                                <li>• Refresh this page after enabling</li>
+                                <li>• For mobile: ensure your browser app has camera access in phone settings</li>
+                            </ul>
+                        </div>
                         <button
                             onClick={startCamera}
                             className="luxury-button w-full !bg-white !text-black !py-4 !text-[10px]"

@@ -1,638 +1,423 @@
--- HSTN Operator-Grade Stabilizers
--- Real-world marketplace protection systems
+-- HSTN Protection Layer
+-- Real-world marketplace manipulation prevention
 -- Run this in your Supabase SQL Editor
 
 -- ==============================================================================
--- ENHANCED SYSTEM CONTROLS
+-- ENHANCED PURCHASE REQUEST PROTECTION
 -- ==============================================================================
 
--- Update system controls with operator-grade safeguards
-ALTER TABLE ranking_system_controls ADD COLUMN IF NOT EXISTS 
-    adjustment_frequency_days INTEGER DEFAULT 7;
+-- Add protection columns to purchase_requests
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS 
+    buyer_ip_address INET;
 
-ALTER TABLE ranking_system_controls ADD COLUMN IF NOT EXISTS 
-    last_adjustment_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS 
+    buyer_device_fingerprint TEXT;
 
-ALTER TABLE ranking_system_controls ADD COLUMN IF NOT EXISTS 
-    min_unique_buyers INTEGER DEFAULT 30;
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS 
+    auto_expired BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE ranking_system_controls ADD COLUMN IF NOT EXISTS 
-    min_unique_sellers INTEGER DEFAULT 10;
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS 
+    buyer_confirmed_completion BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE ranking_system_controls ADD COLUMN IF NOT EXISTS 
-    shadow_mode_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS 
+    seller_response_time_hours INTEGER;
 
-ALTER TABLE ranking_system_controls ADD COLUMN IF NOT EXISTS 
-    shadow_mode_start TIMESTAMP WITH TIME ZONE;
+ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS 
+    expires_at TIMESTAMP WITH TIME ZONE;
 
--- Shadow mode comparison table
-CREATE TABLE IF NOT EXISTS shadow_mode_comparisons (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    product_id UUID REFERENCES products(id),
-    live_ranking_score NUMERIC,
-    adaptive_ranking_score NUMERIC,
-    score_difference NUMERIC,
-    performance_impact NUMERIC, -- Measured after implementation
-    comparison_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    would_change_position BOOLEAN
+-- Seller performance tracking
+CREATE TABLE IF NOT EXISTS seller_performance_metrics (
+    user_id UUID REFERENCES auth.users(id) PRIMARY KEY,
+    total_requests INTEGER DEFAULT 0,
+    responded_requests INTEGER DEFAULT 0,
+    completed_requests INTEGER DEFAULT 0,
+    response_rate NUMERIC(5,2) DEFAULT 0,
+    avg_response_time_hours NUMERIC(8,2) DEFAULT 0,
+    completion_rate NUMERIC(5,2) DEFAULT 0,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Engagement spike detection table
-CREATE TABLE IF NOT EXISTS engagement_spike_flags (
+-- Fraud detection patterns
+CREATE TABLE IF NOT EXISTS request_fraud_patterns (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    product_id UUID REFERENCES products(id),
-    spike_type VARCHAR(50), -- 'views', 'video_plays', 'wishlist_adds', 'cart_adds'
-    baseline_7day_avg NUMERIC,
-    current_24h_count NUMERIC,
-    spike_multiplier NUMERIC,
-    checkout_correlation NUMERIC, -- Checkout change vs engagement change
-    flagged_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    pattern_type VARCHAR(50) NOT NULL, -- 'ip_clustering', 'device_farming', 'fake_accounts'
+    user_id UUID REFERENCES auth.users(id),
+    ip_address INET,
+    device_fingerprint TEXT,
+    request_count_24h INTEGER DEFAULT 0,
+    request_count_7d INTEGER DEFAULT 0,
+    severity INTEGER DEFAULT 1, -- 1=low, 2=medium, 3=high
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     resolved BOOLEAN DEFAULT FALSE
 );
 
--- RLS for new tables
-ALTER TABLE shadow_mode_comparisons ENABLE ROW LEVEL SECURITY;
-ALTER TABLE engagement_spike_flags ENABLE ROW LEVEL SECURITY;
+-- RLS for protection tables
+ALTER TABLE seller_performance_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE request_fraud_patterns ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins can manage shadow comparisons" ON shadow_mode_comparisons FOR ALL USING (
+CREATE POLICY "Admins can manage seller metrics" ON seller_performance_metrics FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
 );
 
-CREATE POLICY "Admins can manage spike flags" ON engagement_spike_flags FOR ALL USING (
+CREATE POLICY "Admins can manage fraud patterns" ON request_fraud_patterns FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
 );
 
 -- ==============================================================================
--- ENHANCED THRESHOLD VALIDATION
+-- PROTECTION FUNCTIONS
 -- ==============================================================================
 
--- Override correlation function with real distribution checks
-CREATE OR REPLACE FUNCTION calculate_ranking_correlations_operational()
-RETURNS void AS $$
-DECLARE
-    trust_corr NUMERIC;
-    heat_corr NUMERIC;
-    video_corr NUMERIC;
-    tier_corr NUMERIC;
-    recency_corr NUMERIC;
-    sample_size INTEGER;
-    min_threshold INTEGER;
-    min_buyers INTEGER;
-    min_sellers INTEGER;
-    max_adjustment NUMERIC;
-    adaptive_on BOOLEAN;
-    shadow_on BOOLEAN;
-    frequency_days INTEGER;
-    last_adjustment TIMESTAMP;
-    
-    -- Distribution validation variables
-    unique_buyers INTEGER;
-    unique_sellers INTEGER;
-    completed_checkouts INTEGER;
-    days_since_last_adjustment INTEGER;
-BEGIN
-    -- Get system controls
-    SELECT minimum_sample_size, max_weight_adjustment, adaptive_enabled,
-           shadow_mode_enabled, adjustment_frequency_days, last_adjustment_date,
-           min_unique_buyers, min_unique_sellers
-    INTO min_threshold, max_adjustment, adaptive_on, shadow_on, frequency_days,
-         last_adjustment, min_buyers, min_sellers
-    FROM ranking_system_controls
-    ORDER BY created_at DESC LIMIT 1;
-    
-    -- Exit if adaptive system is disabled
-    IF NOT adaptive_on THEN
-        RAISE NOTICE 'Adaptive ranking system is manually disabled';
-        RETURN;
-    END IF;
-    
-    -- Check adjustment frequency limit
-    days_since_last_adjustment := EXTRACT(DAYS FROM (NOW() - COALESCE(last_adjustment, NOW() - INTERVAL '30 days')));
-    IF days_since_last_adjustment < frequency_days THEN
-        RAISE NOTICE 'Adjustment frequency limit: % days since last adjustment (limit: %)', 
-                    days_since_last_adjustment, frequency_days;
-        RETURN;
-    END IF;
-    
-    -- Get REAL distribution metrics
-    SELECT 
-        COUNT(DISTINCT o.id) as completed_checkouts,
-        COUNT(DISTINCT o.user_id) as unique_buyers,
-        COUNT(DISTINCT p.user_id) as unique_sellers
-    INTO completed_checkouts, unique_buyers, unique_sellers
-    FROM orders o
-    JOIN products p ON o.product_id = p.id
-    WHERE o.status = 'delivered'
-      AND o.created_at >= NOW() - INTERVAL '30 days';
-    
-    -- Validate ALL thresholds
-    IF completed_checkouts < min_threshold THEN
-        RAISE NOTICE 'Insufficient completed checkouts: % (required: %)', completed_checkouts, min_threshold;
-        RETURN;
-    END IF;
-    
-    IF unique_buyers < min_buyers THEN
-        RAISE NOTICE 'Insufficient unique buyers: % (required: %)', unique_buyers, min_buyers;
-        RETURN;
-    END IF;
-    
-    IF unique_sellers < min_sellers THEN
-        RAISE NOTICE 'Insufficient unique sellers: % (required: %)', unique_sellers, min_sellers;
-        RETURN;
-    END IF;
-    
-    -- Get sample size for correlation analysis
-    SELECT COUNT(DISTINCT pa.product_id) INTO sample_size
-    FROM product_analytics pa
-    WHERE pa.total_views >= 10;
-    
-    IF sample_size < 50 THEN
-        RAISE NOTICE 'Insufficient sample size for correlation: % (required: 50)', sample_size;
-        RETURN;
-    END IF;
-    
-    -- Calculate correlations (only if not in shadow mode)
-    IF NOT shadow_on THEN
-        -- Standard correlation calculations
-        SELECT CORR(pa.total_orders, ts.score) INTO trust_corr
-        FROM product_analytics pa
-        JOIN products p ON pa.product_id = p.id
-        JOIN trust_scores ts ON p.user_id = ts.user_id
-        WHERE pa.total_views >= 10;
-        
-        SELECT CORR(pa.total_orders, pa.heat_score) INTO heat_corr
-        FROM product_analytics pa
-        WHERE pa.total_views >= 10;
-        
-        SELECT CORR(pa.total_orders, pa.total_video_plays) INTO video_corr
-        FROM product_analytics pa
-        WHERE pa.total_views >= 10;
-        
-        SELECT CORR(pa.total_orders, 
-            CASE 
-                WHEN ts.score >= 150 THEN 4
-                WHEN ts.score >= 100 THEN 3
-                WHEN ts.score >= 50 THEN 2
-                ELSE 1
-            END
-        ) INTO tier_corr
-        FROM product_analytics pa
-        JOIN products p ON pa.product_id = p.id
-        JOIN trust_scores ts ON p.user_id = ts.user_id
-        WHERE pa.total_views >= 10;
-        
-        SELECT CORR(pa.total_orders, EXTRACT(EPOCH FROM (NOW() - p.created_at))/86400) INTO recency_corr
-        FROM product_analytics pa
-        JOIN products p ON pa.product_id = p.id
-        WHERE pa.total_views >= 10;
-        
-        -- Update correlations with OPERATOR-GRADE weight multipliers
-        INSERT INTO ranking_correlations (
-            factor_name, correlation_strength, conversion_correlation, sample_size, last_calculated, weight_multiplier
-        ) VALUES 
-            ('trust_score', ABS(trust_corr), trust_corr, sample_size, NOW(), 1.0), -- Trust always 1.0
-            ('heat_score', ABS(heat_corr), heat_corr, sample_size, NOW(), 
-             LEAST(max_adjustment, GREATEST(2.0 - max_adjustment, 1.0))), -- Stabilized symmetric range
-            ('video_plays', ABS(video_corr), video_corr, sample_size, NOW(),
-             LEAST(max_adjustment, GREATEST(2.0 - max_adjustment, 1.0))),
-            ('trust_tier', ABS(tier_corr), tier_corr, sample_size, NOW(), 1.0), -- Tier always 1.0
-            ('recency', ABS(recency_corr), recency_corr, sample_size, NOW(),
-             LEAST(max_adjustment, GREATEST(2.0 - max_adjustment, 1.0)))
-        ON CONFLICT (factor_name) DO UPDATE SET
-            correlation_strength = EXCLUDED.correlation_strength,
-            conversion_correlation = EXCLUDED.conversion_correlation,
-            sample_size = EXCLUDED.sample_size,
-            last_calculated = EXCLUDED.last_calculated,
-            weight_multiplier = EXCLUDED.weight_multiplier;
-        
-        -- Update last adjustment date
-        UPDATE ranking_system_controls 
-        SET last_adjustment_date = NOW()
-        WHERE id = (SELECT id FROM ranking_system_controls ORDER BY created_at DESC LIMIT 1);
-        
-        RAISE NOTICE 'Operational ranking correlations updated - Checkouts: %, Buyers: %, Sellers: %', 
-                    completed_checkouts, unique_buyers, unique_sellers;
-    ELSE
-        RAISE NOTICE 'Shadow mode active - correlations calculated but not applied';
-    END IF;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ==============================================================================
--- SHADOW MODE IMPLEMENTATION
--- ==============================================================================
-
--- Enable shadow mode
-CREATE OR REPLACE FUNCTION enable_shadow_mode()
-RETURNS void AS $$
-BEGIN
-    UPDATE ranking_system_controls 
-    SET shadow_mode_enabled = TRUE,
-        shadow_mode_start = NOW()
-    WHERE id = (SELECT id FROM ranking_system_controls ORDER BY created_at DESC LIMIT 1);
-    
-    RAISE NOTICE 'Shadow mode enabled - adaptive weights calculated but not applied';
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Disable shadow mode and apply weights
-CREATE OR REPLACE FUNCTION disable_shadow_mode()
-RETURNS void AS $$
-BEGIN
-    UPDATE ranking_system_controls 
-    SET shadow_mode_enabled = FALSE,
-        shadow_mode_start = NULL
-    WHERE id = (SELECT id FROM ranking_system_controls ORDER BY created_at DESC LIMIT 1);
-    
-    RAISE NOTICE 'Shadow mode disabled - adaptive weights now live';
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Compare live vs adaptive rankings
-CREATE OR REPLACE FUNCTION run_shadow_mode_comparison()
-RETURNS void AS $$
-DECLARE
-    product_record RECORD;
-    live_score NUMERIC;
-    adaptive_score NUMERIC;
-    score_diff NUMERIC;
-    position_change BOOLEAN;
-BEGIN
-    -- Check if shadow mode is enabled
-    IF NOT EXISTS (SELECT 1 FROM ranking_system_controls WHERE shadow_mode_enabled = TRUE) THEN
-        RAISE NOTICE 'Shadow mode is not enabled';
-        RETURN;
-    END IF;
-    
-    -- Clear old comparisons
-    DELETE FROM shadow_mode_comparisons WHERE comparison_date = CURRENT_DATE;
-    
-    -- Compare scores for all products
-    FOR product_record IN 
-        SELECT id FROM products WHERE status = 'approved'
-    LOOP
-        -- Calculate live score (current system)
-        live_score := calculate_premium_ranking_score(product_record.id);
-        
-        -- Calculate adaptive score (new system)
-        adaptive_score := calculate_adaptive_ranking_score(product_record.id);
-        
-        score_diff := adaptive_score - live_score;
-        position_change := ABS(score_diff) > 10; -- Significant difference threshold
-        
-        -- Store comparison
-        INSERT INTO shadow_mode_comparisons (
-            product_id, live_ranking_score, adaptive_ranking_score, 
-            score_difference, would_change_position
-        ) VALUES (
-            product_record.id, live_score, adaptive_score, 
-            score_diff, position_change
-        );
-    END LOOP;
-    
-    RAISE NOTICE 'Shadow mode comparison completed';
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ==============================================================================
--- ENGAGEMENT SPIKE DETECTION
--- ==============================================================================
-
--- Detect engagement spikes without checkout correlation
-CREATE OR REPLACE FUNCTION detect_engagement_spikes()
-RETURNS void AS $$
-DECLARE
-    spike_record RECORD;
-    baseline_views NUMERIC;
-    current_views NUMERIC;
-    baseline_checkouts NUMERIC;
-    current_checkouts NUMERIC;
-    spike_multiplier NUMERIC;
-    checkout_correlation NUMERIC;
-BEGIN
-    -- Check all active products
-    FOR spike_record IN 
-        SELECT DISTINCT product_id FROM marketplace_events 
-        WHERE event_type = 'product_view' 
-          AND timestamp >= NOW() - INTERVAL '7 days'
-    LOOP
-        -- Get baseline (7-day average)
-        SELECT AVG(daily_count) INTO baseline_views
-        FROM (
-            SELECT COUNT(*) as daily_count
-            FROM marketplace_events 
-            WHERE product_id = spike_record.product_id
-              AND event_type = 'product_view'
-              AND timestamp >= NOW() - INTERVAL '7 days'
-            GROUP BY DATE(timestamp)
-        ) daily_views;
-        
-        -- Get current (24-hour)
-        SELECT COUNT(*) INTO current_views
-        FROM marketplace_events 
-        WHERE product_id = spike_record.product_id
-          AND event_type = 'product_view'
-          AND timestamp >= NOW() - INTERVAL '1 day';
-        
-        -- Calculate spike multiplier
-        IF baseline_views > 0 THEN
-            spike_multiplier := current_views / baseline_views;
-            
-            -- Only flag significant spikes (>3x)
-            IF spike_multiplier >= 3.0 THEN
-                -- Get checkout correlation
-                SELECT AVG(daily_count) INTO baseline_checkouts
-                FROM (
-                    SELECT COUNT(*) as daily_count
-                    FROM marketplace_events 
-                    WHERE product_id = spike_record.product_id
-                      AND event_type = 'checkout_complete'
-                      AND timestamp >= NOW() - INTERVAL '7 days'
-                    GROUP BY DATE(timestamp)
-                ) daily_checkouts;
-                
-                SELECT COUNT(*) INTO current_checkouts
-                FROM marketplace_events 
-                WHERE product_id = spike_record.product_id
-                  AND event_type = 'checkout_complete'
-                  AND timestamp >= NOW() - INTERVAL '1 day';
-                
-                -- Calculate checkout correlation
-                IF baseline_checkouts > 0 THEN
-                    checkout_correlation := (current_checkouts / baseline_checkouts) / spike_multiplier;
-                ELSE
-                    checkout_correlation := 0;
-                END IF;
-                
-                -- Flag if spike not correlated with checkout increase
-                IF checkout_correlation < 0.5 THEN -- Checkout increase less than half of engagement spike
-                    INSERT INTO engagement_spike_flags (
-                        product_id, spike_type, baseline_7day_avg, current_24h_count,
-                        spike_multiplier, checkout_correlation
-                    ) VALUES (
-                        spike_record.product_id, 'views', baseline_views, current_views,
-                        spike_multiplier, checkout_correlation
-                    ) ON CONFLICT (product_id, spike_type) DO UPDATE SET
-                        baseline_7day_avg = EXCLUDED.baseline_7day_avg,
-                        current_24h_count = EXCLUDED.current_24h_count,
-                        spike_multiplier = EXCLUDED.spike_multiplier,
-                        checkout_correlation = EXCLUDED.checkout_correlation,
-                        flagged_at = NOW();
-                END IF;
-            END IF;
-        END IF;
-    END LOOP;
-    
-    RAISE NOTICE 'Engagement spike detection completed';
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ==============================================================================
--- OPERATOR-GRADE PREMIUM RANKING
--- ==============================================================================
-
--- Fixed weight distribution math
-CREATE OR REPLACE FUNCTION calculate_operational_ranking_score(
+-- Enhanced request creation with fraud detection
+CREATE OR REPLACE FUNCTION create_protected_purchase_request(
     p_product_id UUID,
-    p_trust_score INTEGER DEFAULT NULL,
-    p_heat_score NUMERIC DEFAULT NULL
+    p_buyer_id UUID,
+    p_buyer_message TEXT DEFAULT NULL,
+    p_buyer_ip INET DEFAULT NULL,
+    p_device_fingerprint TEXT DEFAULT NULL
 )
-RETURNS NUMERIC AS $$
+RETURNS UUID AS $$
 DECLARE
-    final_score NUMERIC := 0;
-    
-    -- Fixed weight distribution (100% total)
-    trust_weight NUMERIC := 0.60; -- 60% trust anchor
-    heat_weight NUMERIC := 0.20; -- 20% heat max
-    video_weight NUMERIC := 0.08; -- 8% video
-    tier_weight NUMERIC := 0.07; -- 7% tier
-    recency_weight NUMERIC := 0.05; -- 5% recency
-    
-    -- Total dynamic weights = 40% (60% reserved for trust)
-    
-    -- Get actual values
-    actual_trust_score INTEGER;
-    actual_heat_score NUMERIC;
-    video_plays INTEGER;
-    trust_tier INTEGER;
-    days_since_upload NUMERIC;
-    
-    -- System controls
-    adaptive_enabled BOOLEAN;
-    shadow_mode BOOLEAN;
+    request_id UUID;
+    seller_id UUID;
+    ip_requests_24h INTEGER := 0;
+    device_requests_24h INTEGER := 0;
+    fraud_flagged BOOLEAN := FALSE;
 BEGIN
-    -- Get system controls
-    SELECT adaptive_enabled, shadow_mode_enabled
-    INTO adaptive_enabled, shadow_mode
-    FROM ranking_system_controls
-    ORDER BY created_at DESC LIMIT 1;
+    -- Get seller ID
+    SELECT user_id INTO seller_id
+    FROM products 
+    WHERE id = p_product_id AND status = 'approved';
     
-    -- Get product data
-    SELECT ts.score, pa.heat_score, pa.total_video_plays
-    INTO actual_trust_score, actual_heat_score, video_plays
-    FROM products p
-    LEFT JOIN trust_scores ts ON p.user_id = ts.user_id
-    LEFT JOIN product_analytics pa ON p.id = pa.product_id
-    WHERE p.id = p_product_id;
-    
-    -- Use provided values or defaults
-    actual_trust_score := COALESCE(p_trust_score, actual_trust_score, 50);
-    actual_heat_score := COALESCE(p_heat_score, actual_heat_score, 0);
-    
-    -- Get trust tier
-    trust_tier := CASE 
-        WHEN actual_trust_score >= 150 THEN 4
-        WHEN actual_trust_score >= 100 THEN 3
-        WHEN actual_trust_score >= 50 THEN 2
-        ELSE 1
-    END;
-    
-    -- Get recency
-    SELECT EXTRACT(EPOCH FROM (NOW() - created_at))/86400 INTO days_since_upload
-    FROM products WHERE id = p_product_id;
-    
-    -- Liquidity boosts
-    new_seller_boost NUMERIC := 0;
-    low_view_boost NUMERIC := 0;
-    low_inventory_boost NUMERIC := 0;
-    
-    -- Get seller created_at and category
-    seller_created_at TIMESTAMP;
-    total_views INTEGER := 0;
-    category_product_count INTEGER := 0;
-    product_category TEXT;
-    
-    SELECT pr.created_at, p.category
-    INTO seller_created_at, product_category
-    FROM products p
-    JOIN profiles pr ON p.user_id = pr.id
-    WHERE p.id = p_product_id;
-    
-    -- New seller boost: 30% if seller < 7 days old
-    IF seller_created_at > NOW() - INTERVAL '7 days' THEN
-        new_seller_boost := 0.30;
+    IF seller_id IS NULL THEN
+        RAISE EXCEPTION 'Product not found or not approved';
     END IF;
     
-    -- Low view boost: 20% if product has < 50 views
-    SELECT COALESCE(pa.total_views, 0) INTO total_views
-    FROM product_analytics pa
-    WHERE pa.product_id = p_product_id;
+    -- Check IP clustering (more than 5 requests from same IP in 24h)
+    SELECT COUNT(*) INTO ip_requests_24h
+    FROM purchase_requests
+    WHERE buyer_ip_address = p_buyer_ip
+      AND created_at >= NOW() - INTERVAL '24 hours';
     
-    IF total_views < 50 THEN
-        low_view_boost := 0.20;
+    -- Check device farming (more than 3 requests from same device in 24h)
+    SELECT COUNT(*) INTO device_requests_24h
+    FROM purchase_requests
+    WHERE buyer_device_fingerprint = p_device_fingerprint
+      AND created_at >= NOW() - INTERVAL '24 hours';
+    
+    -- Flag fraud patterns
+    IF ip_requests_24h >= 5 THEN
+        INSERT INTO request_fraud_patterns (
+            pattern_type, user_id, ip_address, request_count_24h, severity
+        ) VALUES (
+            'ip_clustering', p_buyer_id, p_buyer_ip, ip_requests_24h, 2
+        );
+        fraud_flagged := TRUE;
     END IF;
     
-    -- Low inventory boost: 15% if category has < 10 approved products
-    SELECT COUNT(*) INTO category_product_count
-    FROM products
-    WHERE category = product_category AND admin_status = 'approved';
-    
-    IF category_product_count < 10 THEN
-        low_inventory_boost := 0.15;
+    IF device_requests_24h >= 3 THEN
+        INSERT INTO request_fraud_patterns (
+            pattern_type, user_id, device_fingerprint, request_count_24h, severity
+        ) VALUES (
+            'device_farming', p_buyer_id, p_device_fingerprint, device_requests_24h, 2
+        );
+        fraud_flagged := TRUE;
     END IF;
     
-    -- Apply adaptive weights only if enabled and not in shadow mode
-    IF adaptive_enabled AND NOT shadow_mode THEN
-        -- Get dynamic multipliers (capped to respect weight distribution)
-        SELECT COALESCE(weight_multiplier, 1.0) INTO heat_weight
-        FROM ranking_correlations 
-        WHERE factor_name = 'heat_score' 
-        ORDER BY last_calculated DESC LIMIT 1;
+    -- Prevent request if fraud flagged
+    IF fraud_flagged THEN
+        RAISE EXCEPTION 'Request flagged for suspicious activity';
+    END IF;
+    
+    -- Create request with 48-hour expiration
+    INSERT INTO purchase_requests (
+        product_id, buyer_id, seller_id, buyer_message,
+        buyer_ip_address, buyer_device_fingerprint,
+        expires_at
+    ) VALUES (
+        p_product_id, p_buyer_id, seller_id, p_buyer_message,
+        p_buyer_ip, p_device_fingerprint,
+        NOW() + INTERVAL '48 hours'
+    ) RETURNING id INTO request_id;
+    
+    -- Update seller performance metrics
+    INSERT INTO seller_performance_metrics (user_id, total_requests)
+    VALUES (seller_id, 1)
+    ON CONFLICT (user_id) DO UPDATE SET
+        total_requests = seller_performance_metrics.total_requests + 1,
+        last_updated = NOW();
+    
+    RETURN request_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Auto-expire old requests
+CREATE OR REPLACE FUNCTION auto_expire_requests()
+RETURNS void AS $$
+BEGIN
+    UPDATE purchase_requests 
+    SET auto_expired = TRUE,
+        status = 'expired'
+    WHERE status = 'pending'
+      AND expires_at < NOW()
+      AND auto_expired = FALSE;
+    
+    -- Log expirations
+    INSERT INTO purchase_request_events (
+        request_id, event_type, triggered_by
+    )
+    SELECT 
+        id, 'auto_expired', NULL
+    FROM purchase_requests 
+    WHERE status = 'expired'
+      AND auto_expired = TRUE;
+    
+    RAISE NOTICE 'Auto-expired % pending requests', 
+        (SELECT COUNT(*) FROM purchase_requests WHERE status = 'expired' AND auto_expired = TRUE);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Enhanced status update with buyer confirmation
+CREATE OR REPLACE FUNCTION update_protected_request_status(
+    p_request_id UUID,
+    p_new_status VARCHAR(20),
+    p_seller_notes TEXT DEFAULT NULL,
+    p_buyer_confirmation BOOLEAN DEFAULT FALSE -- New parameter
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    current_status VARCHAR(20);
+    request_seller_id UUID;
+    current_user_id UUID := auth.uid();
+    response_time_hours INTEGER;
+BEGIN
+    -- Get current status and verify seller
+    SELECT status, seller_id, created_at INTO current_status, request_seller_id
+    FROM purchase_requests 
+    WHERE id = p_request_id;
+    
+    -- Verify permissions
+    IF request_seller_id != current_user_id THEN
+        RAISE EXCEPTION 'Unauthorized: Only seller can update request status';
+    END IF;
+    
+    -- Calculate response time if first response
+    IF p_new_status = 'contacted' AND current_status = 'pending' THEN
+        response_time_hours := EXTRACT(HOURS FROM (NOW() - created_at));
         
-        SELECT COALESCE(weight_multiplier, 1.0) INTO video_weight
-        FROM ranking_correlations 
-        WHERE factor_name = 'video_plays' 
-        ORDER BY last_calculated DESC LIMIT 1;
+        UPDATE purchase_requests 
+        SET status = p_new_status,
+            seller_notes = p_seller_notes,
+            updated_at = NOW(),
+            contacted_at = NOW(),
+            seller_response_time_hours = response_time_hours
+        WHERE id = p_request_id;
         
-        -- Ensure dynamic weights don't exceed their allocated percentage
-        heat_weight := LEAST(heat_weight, 0.20); -- Never exceed 20%
-        video_weight := LEAST(video_weight, 0.08); -- Never exceed 8%
+        -- Update seller performance
+        UPDATE seller_performance_metrics 
+        SET responded_requests = responded_requests + 1,
+            avg_response_time_hours = (
+                (avg_response_time_hours * responded_requests + response_time_hours) / 
+                (responded_requests + 1)
+            ),
+            last_updated = NOW()
+        WHERE user_id = request_seller_id;
         
-        -- Scale to fit within 40% dynamic allocation
-        DECLARE
-            total_dynamic NUMERIC := heat_weight + video_weight + 0.07 + 0.05; -- + tier + recency
-        BEGIN
-            IF total_dynamic > 0.40 THEN
-                heat_weight := (heat_weight / total_dynamic) * 0.40;
-                video_weight := (video_weight / total_dynamic) * 0.40;
-            END IF;
-        END;
+    ELSIF p_new_status = 'completed' THEN
+        -- REQUIRE buyer confirmation for trust score impact
+        IF NOT p_buyer_confirmation THEN
+            RAISE EXCEPTION 'Buyer confirmation required for completion';
+        END IF;
+        
+        UPDATE purchase_requests 
+        SET status = p_new_status,
+            seller_notes = p_seller_notes,
+            updated_at = NOW(),
+            completed_at = NOW(),
+            buyer_confirmed_completion = TRUE
+        WHERE id = p_request_id;
+        
+        -- Update seller performance
+        UPDATE seller_performance_metrics 
+        SET completed_requests = completed_requests + 1,
+            completion_rate = (completed_requests::NUMERIC / total_requests) * 100,
+            last_updated = NOW()
+        WHERE user_id = request_seller_id;
+        
+        -- Only then trigger trust score update
+        PERFORM handle_order_trust_impact();
+        
+    ELSIF p_new_status = 'cancelled' THEN
+        UPDATE purchase_requests 
+        SET status = p_new_status,
+            updated_at = NOW()
+        WHERE id = p_request_id;
     END IF;
     
-    -- Calculate operational ranking score
-    final_score := 
-        (actual_trust_score * trust_weight) +                    -- Trust anchor (60%)
-        (LEAST(actual_heat_score, 500) * heat_weight) +        -- Heat momentum (max 20%)
-        (LEAST(video_plays, 50) * video_weight) +             -- Video engagement (max 8%)
-        (trust_tier * 15 * tier_weight) +                      -- Tier bonus (7%)
-        (GREATEST(0, 30 - days_since_upload) * recency_weight); -- Recency bonus (5%)
+    -- Log event
+    INSERT INTO purchase_request_events (
+        request_id, event_type, triggered_by, event_data
+    ) VALUES (
+        p_request_id, p_new_status, current_user_id,
+        jsonb_build_object(
+            'seller_notes', p_seller_notes,
+            'buyer_confirmation', p_buyer_confirmation
+        )
+    );
     
-    -- Apply liquidity boosts
-    final_score := final_score * (1 + new_seller_boost + low_view_boost + low_inventory_boost);
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Buyer confirmation function
+CREATE OR REPLACE FUNCTION confirm_request_completion(
+    p_request_id UUID,
+    p_buyer_id UUID
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    request_buyer_id UUID;
+    request_status VARCHAR(20);
+BEGIN
+    -- Verify buyer owns this request
+    SELECT buyer_id, status INTO request_buyer_id, request_status
+    FROM purchase_requests 
+    WHERE id = p_request_id;
+    
+    IF request_buyer_id != p_buyer_id THEN
+        RAISE EXCEPTION 'Unauthorized: Only buyer can confirm completion';
+    END IF;
+    
+    IF request_status != 'completed' THEN
+        RAISE EXCEPTION 'Request must be marked completed by seller first';
+    END IF;
+    
+    -- Update buyer confirmation
+    UPDATE purchase_requests 
+    SET buyer_confirmed_completion = TRUE
+    WHERE id = p_request_id;
+    
+    -- Log confirmation
+    INSERT INTO purchase_request_events (
+        request_id, event_type, triggered_by
+    ) VALUES (
+        p_request_id, 'buyer_confirmed', p_buyer_id
+    );
+    
+    RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ==============================================================================
--- SYSTEM STATUS FUNCTIONS
+-- SELLER PERFORMANCE ANALYTICS
 -- ==============================================================================
 
--- Get operational system status
-CREATE OR REPLACE FUNCTION get_operational_system_status()
+-- Get seller performance metrics
+CREATE OR REPLACE FUNCTION get_seller_performance_metrics(
+    p_seller_id UUID
+)
 RETURNS TABLE (
-    adaptive_enabled BOOLEAN,
-    shadow_mode_enabled BOOLEAN,
-    minimum_sample_size INTEGER,
-    min_unique_buyers INTEGER,
-    min_unique_sellers INTEGER,
-    adjustment_frequency_days INTEGER,
-    last_adjustment_date TIMESTAMP WITH TIME ZONE,
-    current_completed_checkouts BIGINT,
-    current_unique_buyers BIGINT,
-    current_unique_sellers BIGINT,
-    days_since_last_adjustment INTEGER,
-    meets_all_thresholds BOOLEAN
+    total_requests INTEGER,
+    responded_requests INTEGER,
+    completed_requests INTEGER,
+    response_rate NUMERIC(5,2),
+    avg_response_time_hours NUMERIC(8,2),
+    completion_rate NUMERIC(5,2),
+    requests_last_7_days INTEGER,
+    performance_grade VARCHAR(1) -- A, B, C, D, F
 ) AS $$
 DECLARE
-    completed_checkouts BIGINT;
-    unique_buyers BIGINT;
-    unique_sellers BIGINT;
-    last_adj TIMESTAMP;
-    freq_days INTEGER;
+    requests_7d INTEGER;
+    response_rate_num NUMERIC;
+    completion_rate_num NUMERIC;
+    grade VARCHAR(1);
 BEGIN
-    -- Get current metrics
-    SELECT 
-        COUNT(DISTINCT o.id),
-        COUNT(DISTINCT o.user_id),
-        COUNT(DISTINCT p.user_id)
-    INTO completed_checkouts, unique_buyers, unique_sellers
-    FROM orders o
-    JOIN products p ON o.product_id = p.id
-    WHERE o.status = 'delivered'
-      AND o.created_at >= NOW() - INTERVAL '30 days';
+    -- Get requests in last 7 days
+    SELECT COUNT(*) INTO requests_7d
+    FROM purchase_requests
+    WHERE seller_id = p_seller_id
+      AND created_at >= NOW() - INTERVAL '7 days';
     
-    -- Get system controls
-    SELECT adaptive_enabled, shadow_mode_enabled, minimum_sample_size,
-           min_unique_buyers, min_unique_sellers, adjustment_frequency_days,
-           last_adjustment_date
-    INTO adaptive_enabled, shadow_mode_enabled, minimum_sample_size,
-         min_unique_buyers, min_unique_sellers, freq_days, last_adj
-    FROM ranking_system_controls
-    ORDER BY created_at DESC LIMIT 1;
+    -- Get current metrics
+    SELECT * INTO response_rate_num, completion_rate_num
+    FROM seller_performance_metrics
+    WHERE user_id = p_seller_id;
+    
+    -- Calculate performance grade
+    grade := CASE
+        WHEN response_rate_num >= 90 AND completion_rate_num >= 80 THEN 'A'
+        WHEN response_rate_num >= 75 AND completion_rate_num >= 60 THEN 'B'
+        WHEN response_rate_num >= 50 AND completion_rate_num >= 40 THEN 'C'
+        WHEN response_rate_num >= 25 THEN 'D'
+        ELSE 'F'
+    END;
     
     RETURN QUERY
     SELECT 
-        adaptive_enabled,
-        shadow_mode_enabled,
-        minimum_sample_size,
-        min_unique_buyers,
-        min_unique_sellers,
-        freq_days,
-        last_adj,
-        completed_checkouts,
-        unique_buyers,
-        unique_sellers,
-        EXTRACT(DAYS FROM (NOW() - COALESCE(last_adj, NOW() - INTERVAL '30 days'))),
-        (completed_checkouts >= minimum_sample_size AND 
-         unique_buyers >= min_unique_buyers AND 
-         unique_sellers >= min_unique_sellers) as meets_all_thresholds;
+        COALESCE(total_requests, 0),
+        COALESCE(responded_requests, 0),
+        COALESCE(completed_requests, 0),
+        COALESCE(response_rate, 0),
+        COALESCE(avg_response_time_hours, 0),
+        COALESCE(completion_rate, 0),
+        requests_7d,
+        grade
+    FROM seller_performance_metrics
+    WHERE user_id = p_seller_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Update main optimization function
-CREATE OR REPLACE FUNCTION optimize_ranking_system()
+-- Flag low-performing sellers
+CREATE OR REPLACE FUNCTION flag_low_performing_sellers()
+RETURNS void AS $$
+DECLARE
+    seller_record RECORD;
+BEGIN
+    -- Flag sellers with poor metrics
+    FOR seller_record IN 
+        SELECT user_id, response_rate, completion_rate
+        FROM seller_performance_metrics
+        WHERE (response_rate < 50 OR completion_rate < 40)
+          AND total_requests >= 10 -- Minimum requests to evaluate
+    LOOP
+        INSERT INTO request_fraud_patterns (
+            pattern_type, user_id, severity, request_count_24h
+        ) VALUES (
+            'low_performance', seller_record.user_id, 2, seller_record.total_requests
+        );
+    END LOOP;
+    
+    RAISE NOTICE 'Flagged % low-performing sellers', 
+        (SELECT COUNT(*) FROM seller_performance_metrics 
+         WHERE (response_rate < 50 OR completion_rate < 40) 
+         AND total_requests >= 10);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ==============================================================================
+-- AUTOMATED PROTECTION JOBS
+-- ==============================================================================
+
+-- Run protection checks daily
+CREATE OR REPLACE FUNCTION run_daily_protection_checks()
 RETURNS void AS $$
 BEGIN
-    -- Use operational-grade correlation analysis
-    PERFORM calculate_ranking_correlations_operational();
+    -- Auto-expire old requests
+    PERFORM auto_expire_requests();
     
-    -- Run spike detection
-    PERFORM detect_engagement_spikes();
+    -- Flag low-performing sellers
+    PERFORM flag_low_performing_sellers();
     
-    -- Track performance
-    PERFORM track_ranking_performance();
+    -- Clean old fraud patterns (keep 30 days)
+    DELETE FROM request_fraud_patterns 
+    WHERE created_at < NOW() - INTERVAL '30 days' 
+      AND resolved = TRUE;
     
-    -- Run shadow mode comparison if enabled
-    IF EXISTS (SELECT 1 FROM ranking_system_controls WHERE shadow_mode_enabled = TRUE) THEN
-        PERFORM run_shadow_mode_comparison();
-    END IF;
-    
-    -- Clean old data
-    DELETE FROM ranking_correlations 
-    WHERE last_calculated < NOW() - INTERVAL '90 days';
-    
-    DELETE FROM ranking_performance 
-    WHERE date_bucket < NOW() - INTERVAL '180 days';
-    
-    DELETE FROM shadow_mode_comparisons 
-    WHERE comparison_date < NOW() - INTERVAL '30 days';
-    
-    DELETE FROM engagement_spike_flags 
-    WHERE flagged_at < NOW() - INTERVAL '14 days' AND resolved = TRUE;
-    
-    RAISE NOTICE 'Operational ranking system optimization completed';
+    RAISE NOTICE 'Daily protection checks completed';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant permissions
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+

@@ -3,12 +3,25 @@
 -- Run this in your Supabase SQL Editor
 
 -- ==============================================================================
+-- DEPENDENCY TABLES (Create if missing)
+-- ==============================================================================
+
+-- Add role column to profiles if missing
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name = 'profiles' AND column_name = 'role') THEN
+    ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'buyer';
+  END IF;
+END $$;
+
+-- ==============================================================================
 -- REFERRAL SYSTEM TABLES
 -- ==============================================================================
 
 -- Referral codes table
 CREATE TABLE IF NOT EXISTS referral_codes (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     code VARCHAR(10) UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -16,7 +29,7 @@ CREATE TABLE IF NOT EXISTS referral_codes (
 
 -- Referral events table
 CREATE TABLE IF NOT EXISTS referral_events (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     referral_code VARCHAR(10) NOT NULL,
     event_type VARCHAR(20) NOT NULL, -- 'click', 'signup', 'purchase', 'share'
     referrer_user_id UUID REFERENCES auth.users(id),
@@ -27,7 +40,7 @@ CREATE TABLE IF NOT EXISTS referral_events (
 
 -- User rewards table
 CREATE TABLE IF NOT EXISTS user_rewards (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     reward_type VARCHAR(20) NOT NULL, -- 'referral_signup', 'referral_purchase', 'share_bonus'
     amount NUMERIC NOT NULL,
@@ -62,13 +75,13 @@ CREATE POLICY "Users can read their rewards" ON user_rewards FOR SELECT USING (
 
 -- Admin policies for management
 CREATE POLICY "Admins can manage all referral data" ON referral_codes FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 CREATE POLICY "Admins can manage all events" ON referral_events FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 CREATE POLICY "Admins can manage all rewards" ON user_rewards FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- ==============================================================================

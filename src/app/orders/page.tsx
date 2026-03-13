@@ -22,7 +22,7 @@ export default function OrdersPage() {
         .from("orders")
         .select(`
           *,
-          products ( title, image_url, price, category )
+          products!id ( title, image_url, price, category )
         `)
         .eq("buyer_id", user.id)
         .order("created_at", { ascending: false })

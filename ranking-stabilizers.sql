@@ -3,12 +3,71 @@
 -- Run this in your Supabase SQL Editor
 
 -- ==============================================================================
+-- DEPENDENCY TABLES (Create if missing)
+-- ==============================================================================
+
+-- Product analytics table
+CREATE TABLE IF NOT EXISTS product_analytics (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    product_id UUID NOT NULL REFERENCES products(id) UNIQUE,
+    total_views INTEGER DEFAULT 0,
+    total_orders INTEGER DEFAULT 0,
+    total_video_plays INTEGER DEFAULT 0,
+    heat_score NUMERIC DEFAULT 0,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Marketplace events table
+CREATE TABLE IF NOT EXISTS marketplace_events (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    product_id UUID NOT NULL REFERENCES products(id),
+    event_type VARCHAR(50) NOT NULL,
+    user_id UUID REFERENCES auth.users(id),
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Trust scores table
+CREATE TABLE IF NOT EXISTS trust_scores (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) UNIQUE,
+    score INTEGER DEFAULT 50 CHECK (score >= 0 AND score <= 100),
+    total_reviews INTEGER DEFAULT 0,
+    positive_reviews INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Ranking performance table
+CREATE TABLE IF NOT EXISTS ranking_performance (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    date_bucket DATE NOT NULL,
+    total_impressions INTEGER DEFAULT 0,
+    total_clicks INTEGER DEFAULT 0,
+    total_orders INTEGER DEFAULT 0,
+    average_ranking_score NUMERIC DEFAULT 0,
+    top_performer_click_rate NUMERIC DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Ranking correlations table
+CREATE TABLE IF NOT EXISTS ranking_correlations (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    factor_name VARCHAR(50) NOT NULL UNIQUE,
+    correlation_strength NUMERIC DEFAULT 0,
+    conversion_correlation NUMERIC DEFAULT 0,
+    sample_size INTEGER DEFAULT 0,
+    weight_multiplier NUMERIC(3,2) DEFAULT 1.0,
+    last_calculated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ==============================================================================
 -- SYSTEM CONTROL TABLE
 -- ==============================================================================
 
 -- Adaptive system control panel
 CREATE TABLE IF NOT EXISTS ranking_system_controls (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     adaptive_enabled BOOLEAN DEFAULT TRUE,
     minimum_sample_size INTEGER DEFAULT 100, -- Minimum transactions before weight changes
     max_weight_adjustment NUMERIC(3,2) DEFAULT 1.1, -- Max 1.1x adjustment
@@ -25,10 +84,19 @@ CREATE TABLE IF NOT EXISTS ranking_system_controls (
 INSERT INTO ranking_system_controls (adaptive_enabled) VALUES (TRUE)
 ON CONFLICT DO NOTHING;
 
+-- Add role column to profiles if missing
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name = 'profiles' AND column_name = 'role') THEN
+    ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'buyer';
+  END IF;
+END $$;
+
 -- RLS for system controls
 ALTER TABLE ranking_system_controls ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admins can manage ranking controls" ON ranking_system_controls FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE user_id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- ==============================================================================

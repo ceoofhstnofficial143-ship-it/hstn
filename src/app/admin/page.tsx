@@ -516,6 +516,7 @@ export default function AdminPage() {
                                         <div className="flex items-center gap-3">
                                             <p className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{product.title}</p>
                                             {product.admin_status === 'pending' && <span className="text-[9px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-black uppercase tracking-widest">Pending Review</span>}
+                                            {product.admin_status === 'needs_review' && <span className="text-[9px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-black uppercase tracking-widest">Needs Review</span>}
                                             {product.admin_status === 'rejected' && <span className="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-black uppercase tracking-widest">Rejected</span>}
                                             {product.video_url && <span className="text-[10px]">🎥</span>}
                                         </div>
@@ -528,6 +529,12 @@ export default function AdminPage() {
                                                 <button onClick={() => reviewAction(product.id, 'approved', product.user_id)} className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">Approve Validation</button>
                                                 <button onClick={() => reviewAction(product.id, 'reupload', product.user_id)} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">Req. Re-upload</button>
                                                 <button onClick={() => reviewAction(product.id, 'rejected', product.user_id)} className="bg-slate-900 hover:bg-black text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">Reject File</button>
+                                            </>
+                                        )}
+                                        {product.admin_status === 'needs_review' && (
+                                            <>
+                                                <button onClick={() => reviewAction(product.id, 'approved', product.user_id)} className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">Approve Review</button>
+                                                <button onClick={() => reviewAction(product.id, 'rejected', product.user_id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">Reject</button>
                                             </>
                                         )}
                                         {product.admin_status === 'deleted' && (

@@ -5,17 +5,46 @@ import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
 import { getTrustTier } from "@/lib/trustTier"
-import SimplePurchaseRequestButton from "@/components/SimplePurchaseRequestButton"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import ProductGallery from "./components/ProductGallery"
+
+type Variant = {
+    color?: string
+    size?: string
+    stock?: number
+    price?: number
+}
+
+type Product = {
+    id: string
+    title: string
+    price: number
+    category: string
+    image_url: string
+    additional_images?: string[]
+    video_url?: string
+    description?: string
+    user_id: string
+    stock?: number
+    variants?: Variant[]
+    trust?: {
+        score: number
+        verified: boolean
+    }
+    // ... other fields as needed
+}
 
 export default function ProductPage() {
     const router = useRouter()
     const params = useParams()
     const id = params?.id as string
-    const [product, setProduct] = useState<any>(null)
+    const [product, setProduct] = useState<Product | null>(null)
     const [user, setUser] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [displayScore, setDisplayScore] = useState(0)
+
+    // Variant selection state
+    const [selectedColor, setSelectedColor] = useState<string | null>(null)
+    const [selectedSize, setSelectedSize] = useState<string | null>(null)
 
     const [fullName, setFullName] = useState("")
     const [phone, setPhone] = useState("")
@@ -26,21 +55,12 @@ export default function ProductPage() {
     const [averageRating, setAverageRating] = useState(0)
     const [soldToday, setSoldToday] = useState(0)
     const [viewing, setViewing] = useState(0)
-    const [currentImageIndex, setCurrentImageIndex] = useState(0)
-    const [showVideoModal, setShowVideoModal] = useState(false)
-    const [touchStart, setTouchStart] = useState(0)
-    const [touchEnd, setTouchEnd] = useState(0)
-    const [showImageZoom, setShowImageZoom] = useState(false)
-    const [zoomImageIndex, setZoomImageIndex] = useState(0)
     const [recommendedProducts, setRecommendedProducts] = useState<any[]>([])
 
     // Review state
     const [reviews, setReviews] = useState<any[]>([])
     const [newReview, setNewReview] = useState({ rating: 5, comment: "", photo_url: "" })
     const [submittingReview, setSubmittingReview] = useState(false)
-
-    // Lazy loading for image gallery
-    const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set())
 
     useEffect(() => {
         const run = async () => {
@@ -146,12 +166,13 @@ export default function ProductPage() {
                     color_verified,
                     additional_images,
                     user_id,
-                    profiles:user_id(username)
+                    profiles!products_user_id_fkey(username)
                 `)
                 .eq("category", product.category)
                 .neq("id", product.id)
                 .eq("admin_status", "approved")
-                .limit(4)
+                .order("created_at", { ascending: false })
+                .limit(6)
 
             // Get products in similar price range (±30%)
             const priceMin = product.price * 0.7
@@ -167,13 +188,14 @@ export default function ProductPage() {
                     color_verified,
                     additional_images,
                     user_id,
-                    profiles:user_id(username)
+                    profiles!products_user_id_fkey(username)
                 `)
                 .gte("price", priceMin)
                 .lte("price", priceMax)
                 .neq("id", product.id)
                 .eq("admin_status", "approved")
-                .limit(4)
+                .order("created_at", { ascending: false })
+                .limit(6)
 
             // Combine and deduplicate recommendations
             const allRecommendations = [...(categoryMatches || []), ...(priceMatches || [])]
@@ -196,6 +218,7 @@ export default function ProductPage() {
     }, [fetchRecommendations])
 
     const handleAddToCart = () => {
+        if (!product) return
         const cart = JSON.parse(localStorage.getItem("hstn-cart") || "[]")
         const exists = cart.find((item: any) => item.id === product.id)
         if (exists) {
@@ -217,7 +240,7 @@ export default function ProductPage() {
             router.push("/login")
             return
         }
-        if (!fullName || !phone || !address || !city || !pincode) {
+        if (!fullName || !phone || !address || !city || !pincode || !product) {
             alert("Please fill all shipping fields")
             return
         }
@@ -316,40 +339,6 @@ export default function ProductPage() {
     // Get all images including additional_images
     const allImages = product ? [product.image_url, ...(product.additional_images || [])].filter(Boolean) : []
 
-    // Enhanced touch swipe handlers for fashion marketplace
-    const handleTouchStart = (e: React.TouchEvent) => {
-        setTouchEnd(0)
-        setTouchStart(e.targetTouches[0].clientX)
-    }
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        setTouchEnd(e.targetTouches[0].clientX)
-    }
-
-    const handleTouchEnd = () => {
-        if (!touchStart || !touchEnd) return
-        
-        const distance = touchStart - touchEnd
-        const isLeftSwipe = distance > 50
-        const isRightSwipe = distance < -50
-
-        if (isLeftSwipe && currentImageIndex < allImages.length - 1) {
-            setCurrentImageIndex(currentImageIndex + 1)
-        }
-        if (isRightSwipe && currentImageIndex > 0) {
-            setCurrentImageIndex(currentImageIndex - 1)
-        }
-    }
-
-    // Image zoom handler with smooth transitions
-    const handleImageZoom = (index: number) => {
-        setZoomImageIndex(index)
-        setShowImageZoom(true)
-    }
-    
-    const handleImageLoad = (index: number) => {
-        setLoadedImages(prev => new Set(prev).add(index))
-    }
     return (
         <>
         <main className="bg-background min-h-screen">
@@ -364,145 +353,12 @@ export default function ProductPage() {
 
                     {/* LEFT: Image Gallery with Carousel */}
                     <div className="space-y-4">
-                        {/* Main Image Carousel - Fashion Marketplace Style */}
-                        <div 
-                            className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 group cursor-pointer"
-                            onTouchStart={handleTouchStart}
-                            onTouchMove={handleTouchMove}
-                            onTouchEnd={handleTouchEnd}
-                            onClick={() => handleImageZoom(currentImageIndex)}
-                        >
-                            {allImages.length > 0 ? (
-                                <>
-                                    {/* Main Image with Lazy Loading */}
-                                    <div className="relative w-full h-full">
-                                        {!loadedImages.has(currentImageIndex) && (
-                                            <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
-                                                <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                                            </div>
-                                        )}
-                                        <img
-                                            src={allImages[currentImageIndex]}
-                                            alt={`${product.title} - Photo ${currentImageIndex + 1}`}
-                                            className={`w-full h-full object-cover transition-all duration-500 ${
-                                                loadedImages.has(currentImageIndex) ? 'opacity-100' : 'opacity-0'
-                                            }`}
-                                            loading="eager"
-                                            onLoad={() => handleImageLoad(currentImageIndex)}
-                                            sizes="(max-width: 768px) 100vw, 50vw"
-                                        />
-                                    </div>
-                                    
-                                    {/* Premium Navigation Arrows */}
-                                    {allImages.length > 1 && (
-                                        <>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1)
-                                                }}
-                                                className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/95 hover:bg-white rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 transform hover:scale-110"
-                                            >
-                                                <ChevronLeft className="w-6 h-6 text-gray-800" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1)
-                                                }}
-                                                className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/95 hover:bg-white rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 transform hover:scale-110"
-                                            >
-                                                <ChevronRight className="w-6 h-6 text-gray-800" />
-                                            </button>
-                                        </>
-                                    )}
-                                    
-                                    {/* Premium Image Counter */}
-                                    {allImages.length > 1 && (
-                                        <div className="absolute top-4 right-4 bg-black/70 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-full font-medium">
-                                            {currentImageIndex + 1} / {allImages.length}
-                                        </div>
-                                    )}
-
-                                    {/* Zoom Indicator */}
-                                    <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm text-gray-800 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
-                                        </svg>
-                                        Tap to zoom
-                                    </div>
-                                </>
-                            ) : (
-                                <img
-                                    src={product.image_url}
-                                    alt={product.title}
-                                    className="w-full h-full object-cover"
-                                />
-                            )}
-                        </div>
-
-                        {/* Thumbnail Gallery - Fashion Marketplace Style */}
-                        {allImages.length > 1 && (
-                            <div className="grid grid-cols-4 gap-2">
-                                {allImages.map((img, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setCurrentImageIndex(idx)}
-                                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 ${
-                                            idx === currentImageIndex 
-                                                ? 'border-black shadow-lg scale-105' 
-                                                : 'border-gray-200 hover:border-gray-400 hover:scale-105'
-                                        }`}
-                                    >
-                                        <img
-                                            src={img}
-                                            alt={`Thumbnail ${idx + 1}`}
-                                            className="w-full h-full object-cover"
-                                            loading="lazy"
-                                        />
-                                        {idx === currentImageIndex && (
-                                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                                                <div className="w-2 h-2 bg-white rounded-full" />
-                                            </div>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        
-                        {/* Thumbnail Strip - Swipeable */}
-                        {allImages.length > 1 && (
-                            <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory">
-                                {allImages.map((img, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setCurrentImageIndex(idx)}
-                                        className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all snap-center ${
-                                            idx === currentImageIndex ? 'border-black' : 'border-gray-200 hover:border-gray-400'
-                                        }`}
-                                    >
-                                        <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Video Button */}
-                        {product.video_url && (
-                            <button
-                                onClick={() => setShowVideoModal(true)}
-                                className="w-full aspect-video rounded-xl bg-black flex items-center justify-center hover:bg-gray-900 transition-colors group"
-                            >
-                                <div className="text-white text-center">
-                                    <div className="w-16 h-16 mx-auto mb-3 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
-                                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/>
-                                        </svg>
-                                    </div>
-                                    <p className="text-sm font-medium">View Verification Video</p>
-                                </div>
-                            </button>
-                        )}
+                        <ProductGallery
+            image_url={product.image_url}
+            additional_images={product.additional_images}
+            video_url={product.video_url}
+            title={product.title}
+          />
 
                         {/* Trust Score Card */}
                         <div className="bg-white rounded-xl p-6 shadow-sm border">
@@ -549,9 +405,18 @@ export default function ProductPage() {
                         </div>
 
                         {/* Price */}
-                        <div className="text-3xl font-bold text-gray-900">
-                            ₹{product.price.toLocaleString()}
-                        </div>
+                        {(() => {
+                            const selectedVariant = product.variants?.find(v =>
+                                (!selectedColor || v.color === selectedColor) &&
+                                (!selectedSize || v.size === selectedSize)
+                            )
+                            const displayPrice = selectedVariant?.price || product.price
+                            return (
+                                <div className="text-3xl font-bold text-gray-900">
+                                    ₹{displayPrice.toLocaleString()}
+                                </div>
+                            )
+                        })()}
 
                         <div className="space-y-1 pt-2">
                             <div className="flex items-center gap-1 text-sm text-red-600 font-medium">
@@ -560,7 +425,7 @@ export default function ProductPage() {
                             </div>
                             <div className="flex items-center gap-1 text-sm text-orange-600 font-medium">
                                 <span>⏳</span>
-                                <span>Only {Math.max(1, Math.min(product.stock, Math.floor(Math.random() * 5) + 1))} left in stock</span>
+                                <span>Only {Math.max(1, Math.min(product.stock || 0, Math.floor(Math.random() * 5) + 1))} left in stock</span>
                             </div>
                         </div>
 
@@ -577,20 +442,93 @@ export default function ProductPage() {
                             {product.description || "Premium fashion piece with verified authenticity and quality craftsmanship."}
                         </div>
 
-                        {/* Size Info */}
-                        {product.measurements && Object.values(product.measurements).some(v => v) && (
+                        {/* Variants Selector */}
+                        {product?.variants && product.variants.length > 0 && (
                             <div className="space-y-4">
-                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Measurements</h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {Object.entries((product.measurements as Record<string, string>) || {}).map(([key, val]) => (
-                                        val && (
-                                            <div key={key} className="bg-gray-50 rounded-lg p-3 text-center">
-                                                <div className="text-xs text-gray-500 uppercase tracking-wide">{key}</div>
-                                                <div className="text-sm font-semibold text-gray-900">{val} cm</div>
+                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Options</h3>
+
+                                {/* Color Selection */}
+                                {(() => {
+                                    const availableColors = [...new Set(product.variants.map((v: Variant) => v.color))].filter(Boolean) as string[]
+                                    return availableColors.length > 1 && (
+                                        <div className="space-y-2">
+                                            <span className="text-sm font-medium text-gray-700">Color</span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {availableColors.map((color) => (
+                                                    <button
+                                                        key={color}
+                                                        onClick={() => setSelectedColor(color)}
+                                                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                                            selectedColor === color
+                                                                ? 'border-black bg-black text-white'
+                                                                : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                                                        }`}
+                                                    >
+                                                        {color}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )
+                                })()}
+
+                                {/* Size Selection */}
+                                {(() => {
+                                    const availableSizes = product.variants
+                                        .filter((v: Variant) => !selectedColor || v.color === selectedColor)
+                                        .map((v: Variant) => v.size)
+                                        .filter((size, index, arr) => arr.indexOf(size) === index && size) as string[]
+                                    return availableSizes.length > 0 && (
+                                        <div className="space-y-2">
+                                            <span className="text-sm font-medium text-gray-700">Size</span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {availableSizes.map((size) => {
+                                                    const isAvailable = product?.variants?.some((v: Variant) =>
+                                                        (!selectedColor || v.color === selectedColor) &&
+                                                        v.size === size &&
+                                                        v.stock && v.stock > 0
+                                                    ) || false
+                                                    return (
+                                                        <button
+                                                            key={size}
+                                                            onClick={() => isAvailable && setSelectedSize(size)}
+                                                            disabled={!isAvailable}
+                                                            className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                                                selectedSize === size && isAvailable
+                                                                    ? 'border-black bg-black text-white'
+                                                                    : isAvailable
+                                                                        ? 'border-gray-300 text-gray-700 hover:border-gray-400'
+                                                                        : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                                            }`}
+                                                        >
+                                                            {size}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )
+                                })()}
+
+                                {/* Selected Variant Info */}
+                                {(() => {
+                                    const selectedVariant = product.variants.find((v: Variant) =>
+                                        (!selectedColor || v.color === selectedColor) &&
+                                        (!selectedSize || v.size === selectedSize)
+                                    )
+                                    if (selectedVariant && selectedVariant.stock !== undefined) {
+                                        return (
+                                            <div className="text-sm text-gray-600">
+                                                {selectedVariant.stock > 0 ? (
+                                                    <span className="text-green-600">✓ In stock ({selectedVariant.stock} left)</span>
+                                                ) : (
+                                                    <span className="text-red-600">✗ Out of stock</span>
+                                                )}
                                             </div>
                                         )
-                                    ))}
-                                </div>
+                                    }
+                                    return null
+                                })()}
                             </div>
                         )}
 
@@ -752,118 +690,6 @@ export default function ProductPage() {
                 </div>
             </div>
         </main>
-
-        {/* Video Modal */}
-        {showVideoModal && product.video_url && (
-            <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setShowVideoModal(false)}>
-                <div className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-                    <div className="bg-black rounded-xl overflow-hidden">
-                        <div className="flex justify-between items-center p-4 bg-gray-900">
-                            <h3 className="text-white font-semibold">Verification Video</h3>
-                            <button
-                                onClick={() => setShowVideoModal(false)}
-                                className="text-white hover:text-gray-300 transition-colors"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-                        <video
-                            src={product.video_url}
-                            className="w-full max-h-[70vh] object-contain"
-                            controls
-                            autoPlay
-                            loop
-                            muted
-                            playsInline
-                            onError={(e) => {
-                                console.log('Video failed to load:', product.video_url);
-                                e.currentTarget.style.display = 'none';
-                            }}
-                        />
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {/* Image Zoom Modal - Full Screen */}
-        {showImageZoom && (
-            <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-                {/* Close Button */}
-                <button
-                    onClick={() => setShowImageZoom(false)}
-                    className="absolute top-6 right-6 z-60 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-
-                {/* Navigation Arrows */}
-                {allImages.length > 1 && (
-                    <>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setZoomImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1)
-                            }}
-                            className="absolute left-6 top-1/2 -translate-y-1/2 z-60 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setZoomImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1)
-                            }}
-                            className="absolute right-6 top-1/2 -translate-y-1/2 z-60 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
-                    </>
-                )}
-
-                {/* Main Zoomed Image */}
-                <div className="w-full h-full flex items-center justify-center p-6">
-                    <img
-                        src={allImages[zoomImageIndex]}
-                        alt={`${product.title} - Photo ${zoomImageIndex + 1}`}
-                        className="max-w-full max-h-full object-contain"
-                        style={{ imageRendering: 'auto' }}
-                    />
-                </div>
-
-                {/* Thumbnail Strip */}
-                {allImages.length > 1 && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 bg-black/50 backdrop-blur-md rounded-full p-2">
-                        {allImages.map((img, idx) => (
-                            <button
-                                key={idx}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    setZoomImageIndex(idx)
-                                }}
-                                className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
-                                    idx === zoomImageIndex ? 'border-white' : 'border-white/30 opacity-60'
-                                }`}
-                            >
-                                <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
-                            </button>
-                        ))}
-                    </div>
-                )}
-
-                {/* Image Counter */}
-                <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-md text-white text-sm px-3 py-1 rounded-full">
-                    {zoomImageIndex + 1} / {allImages.length}
-                </div>
-            </div>
-        )}
     </>
     )
 }

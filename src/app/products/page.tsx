@@ -1,183 +1,93 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState, Suspense } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
-import { getTrustBoost, getRecencyBoost } from "@/lib/trustTier"
 import ProductCard from "@/components/ProductCard"
 
 export default function ProductsPage() {
-    return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <ProductsContent />
-        </Suspense>
-    )
-}
-
-function ProductsContent() {
-    const searchParams = useSearchParams()
-    const initialCategory = searchParams.get("category") || "All"
-
     const [products, setProducts] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
-    const [category, setCategory] = useState(initialCategory)
-    const [searchQuery, setSearchQuery] = useState("")
-    
-    // Infinite scroll state
+    const [loading, setLoading] = useState(false)
+    const [category, setCategory] = useState("All")
     const [page, setPage] = useState(0)
-    const [hasMore, setHasMore] = useState(true)
-    const [preloadedProducts, setPreloadedProducts] = useState<any[]>([])
-    const [isLoadingMore, setIsLoadingMore] = useState(false)
-    const productsPerPage = 12
+    const [categories, setCategories] = useState<string[]>(["All"])
 
-    const fashionCategories = [
-        { name: "All", image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=2070&auto=format&fit=crop" },
-        { name: "Co-ord sets", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1920&auto=format&fit=crop" },
-        { name: "Trendy tops", image: "https://images.unsplash.com/photo-1551163943-3f6a855d1153?q=80&w=1887&auto=format&fit=crop" },
-        { name: "Casual dresses", image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=1983&auto=format&fit=crop" },
-        { name: "Korean-style fashion", image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1887&auto=format&fit=crop" }
-    ]
+    const loadCategories = async () => {
+        const { data } = await supabase
+            .from("products")
+            .select("category")
+            .eq("admin_status", "approved")
 
-    const fetchProducts = async (currentPage = 0, append = false) => {
-        try {
-            if (!append) setLoading(true)
-            else setIsLoadingMore(true)
-
-            let query = supabase
-                .from("products")
-                .select(`
-                    *,
-                    profiles:user_id(username)
-                `)
-                .eq("admin_status", "approved")
-                .order("created_at", { ascending: false })
-                .range(currentPage * productsPerPage, (currentPage + 1) * productsPerPage - 1)
-
-            if (category !== "All") {
-                query = query.eq("category", category)
-            }
-
-            if (searchQuery) {
-                query = query.ilike("title", `%${searchQuery}%`)
-            }
-
-            const { data, error } = await query
-
-            if (error) throw error
-
-            const newProducts = data || []
-            
-            if (append) {
-                setProducts(prev => [...prev, ...newProducts])
-            } else {
-                setProducts(newProducts)
-            }
-
-            // Check if there are more products to load
-            if (newProducts.length < productsPerPage) {
-                setHasMore(false)
-            }
-
-            // Preload next page for instant experience
-            if (newProducts.length === productsPerPage) {
-                preloadNextPage(currentPage + 1)
-            }
-
-        } catch (error) {
-            console.error("Error fetching products:", error)
-        } finally {
-            setLoading(false)
-            setIsLoadingMore(false)
+        if (data) {
+            const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean))]
+            setCategories(["All", ...uniqueCategories.sort()])
         }
     }
 
-    const preloadNextPage = async (nextPage: number) => {
-        try {
-            let query = supabase
-                .from("products")
-                .select(`
-                    *,
-                    profiles:user_id(username)
-                `)
-                .eq("admin_status", "approved")
-                .order("created_at", { ascending: false })
-                .range(nextPage * productsPerPage, (nextPage + 1) * productsPerPage - 1)
+    const observer = useRef<IntersectionObserver | null>(null)
 
-            if (category !== "All") {
-                query = query.eq("category", category)
-            }
+    const loadProducts = async (append = false) => {
+        setLoading(true)
+        let query = supabase
+            .from("products")
+            .select("*")
+            .eq("admin_status", "approved")
 
-            if (searchQuery) {
-                query = query.ilike("title", `%${searchQuery}%`)
-            }
-
-            const { data } = await query
-            setPreloadedProducts(data || [])
-        } catch (error) {
-            console.log("Preload failed, will load on demand")
+        if (category !== "All") {
+            query = query.eq("category", category)
         }
+
+        const start = page * 20
+        const end = start + 19
+        const { data } = await query.order("created_at", { ascending: false }).range(start, end)
+
+        if (append) {
+            setProducts(prev => [...prev, ...(data || [])])
+        } else {
+            setProducts(data || [])
+        }
+        setLoading(false)
     }
 
-    const loadMore = () => {
-        if (hasMore && !isLoadingMore) {
-            const nextPage = page + 1
-            setPage(nextPage)
-            
-            // Use preloaded data if available
-            if (preloadedProducts.length > 0) {
-                setProducts(prev => [...prev, ...preloadedProducts])
-                setPreloadedProducts([])
-                
-                // Preload the next page
-                if (preloadedProducts.length === productsPerPage) {
-                    preloadNextPage(nextPage + 1)
-                } else {
-                    setHasMore(false)
-                }
-            } else {
-                fetchProducts(nextPage, true)
+    const lastProductRef = useCallback((node: HTMLElement | null) => {
+        if (loading) return
+        if (observer.current) observer.current.disconnect()
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && !loading) {
+                setPage(prev => prev + 1)
             }
-        }
-    }
+        })
+        if (node) observer.current.observe(node)
+    }, []) // Remove loading dependency to prevent unnecessary re-creations
 
-    // Intersection Observer for infinite scroll
     useEffect(() => {
-        const observer = new IntersectionObserver(
-            (entries) => {
-                const target = entries[0]
-                if (target.isIntersecting && hasMore && !isLoadingMore) {
-                    loadMore()
-                }
-            },
-            { threshold: 0.1 }
-        )
-
-        const sentinel = document.getElementById('scroll-sentinel')
-        if (sentinel) observer.observe(sentinel)
-
-        return () => {
-            if (sentinel) observer.unobserve(sentinel)
-        }
-    }, [hasMore, isLoadingMore, page, preloadedProducts])
-
-    // Reset pagination when filters change
-    useEffect(() => {
-        setPage(0)
-        setHasMore(true)
-        setPreloadedProducts([])
-        fetchProducts(0, false)
-    }, [category, searchQuery])
-
-    // Initial load
-    useEffect(() => {
-        fetchProducts(0, false)
+        loadProducts()
     }, [])
 
-    if (loading) {
+    useEffect(() => {
+        if (page > 0) loadProducts(true)
+    }, [page])
+
+    useEffect(() => {
+        setPage(0)
+        loadProducts()
+    }, [category])
+
+    if (loading && products.length === 0) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {[...Array(8)].map((_, i) => (
+                        <div key={i} className="bg-white border border-gray-100 rounded-xl overflow-hidden animate-pulse">
+                            <div className="aspect-square bg-gray-200"></div>
+                            <div className="p-4 space-y-2">
+                                <div className="h-4 bg-gray-200 rounded"></div>
+                                <div className="h-5 bg-gray-200 rounded w-2/3"></div>
+                                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         )
     }
@@ -195,57 +105,41 @@ function ProductsContent() {
                     </p>
                 </div>
 
-                {/* Search */}
-                <div className="mb-8">
-                    <input
-                        type="text"
-                        placeholder="Search fashion items..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                </div>
-
                 {/* Categories */}
                 <div className="mb-12">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                        {fashionCategories.map((cat) => (
+                    <div className="flex gap-4 overflow-x-auto pb-4">
+                        {categories.map((cat) => (
                             <button
-                                key={cat.name}
-                                onClick={() => setCategory(cat.name)}
-                                className={`relative h-32 rounded-xl overflow-hidden transition-all ${
-                                    category === cat.name ? 'ring-2 ring-primary' : ''
+                                key={cat}
+                                onClick={() => setCategory(cat)}
+                                className={`px-5 py-2 rounded-full text-sm font-semibold border flex-shrink-0 ${
+                                    category === cat
+                                        ? "bg-black text-white"
+                                        : "bg-white text-gray-700 hover:bg-gray-100"
                                 }`}
                             >
-                                <img
-                                    src={cat.image}
-                                    alt={cat.name}
-                                    className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                                    <span className="text-white font-semibold">{cat.name}</span>
-                                </div>
+                                {cat}
                             </button>
                         ))}
                     </div>
                 </div>
 
                 {/* Products Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {products.map((product) => (
-                        <ProductCard key={product.id} product={product} />
-                    ))}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {products.map((product, i) => {
+                        if (products.length === i + 1) {
+                            return <div ref={lastProductRef} key={product.id}><ProductCard product={product} /></div>
+                        }
+                        return <ProductCard key={product.id} product={product} />
+                    })}
                 </div>
 
                 {/* Load More Indicator */}
-                {isLoadingMore && (
+                {loading && products.length > 0 && (
                     <div className="flex justify-center py-8">
                         <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
                     </div>
                 )}
-
-                {/* Scroll Sentinel */}
-                <div id="scroll-sentinel" className="h-1" />
             </div>
         </>
     )
