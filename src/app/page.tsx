@@ -208,22 +208,17 @@ export default function Home() {
 
   const [initialLoadDone, setInitialLoadDone] = useState(false)
 
-  // 3️⃣ Debounced Search
+  // 3️⃣ Handling empty search query
   useEffect(() => {
     if (!initialLoadDone) {
       setInitialLoadDone(true)
       return
     }
 
-    const timer = setTimeout(() => {
-      if (query.trim().length > 1) {
-        searchProducts()
-      } else if (query.trim().length === 0) {
-        fetchProducts()
-      }
-    }, 300)
-
-    return () => clearTimeout(timer)
+    if (query.trim().length === 0) {
+      fetchProducts()
+      setShowSuggestions(false)
+    }
   }, [query])
 
   const searchProducts = async () => {
@@ -340,8 +335,20 @@ export default function Home() {
                 const val = e.target.value;
                 setQuery(val); 
                 generateSuggestions(val); 
-                setShowSuggestions(true); 
+                setShowSuggestions(val.trim().length > 0); 
               }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setShowSuggestions(false);
+                  searchProducts();
+                }
+              }}
+              onFocus={(e) => {
+                if (e.target.value.trim().length > 0) {
+                  setShowSuggestions(true)
+                }
+              }}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
               className="w-full px-4 py-3 border border-gray-100 rounded-xl focus:ring-2 focus:ring-black outline-none text-sm font-medium"
             />
             <button onClick={searchProducts} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black text-white rounded-lg hover:bg-gray-800">
@@ -386,7 +393,30 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-12">
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        
+        {/* Horizontal Category Pills for easy access (Mobile & Desktop) */}
+        <div className="flex overflow-x-auto gap-3 pb-6 mb-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => {
+                setSelectedCategory(cat);
+                setQuery("");
+                setShowSuggestions(false);
+                if (viewMode === 'feed') setViewMode('grid');
+              }}
+              className={`whitespace-nowrap px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all bg-white border shrink-0 ${
+                selectedCategory === cat
+                  ? 'border-black bg-black text-white shadow-lg'
+                  : 'border-gray-200 text-gray-500 hover:border-black hover:text-black hover:bg-gray-50'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
         {viewMode === 'feed' ? (
           <DiscoveryFeed userId={user?.id} userStyles={userStyles} />
         ) : (
