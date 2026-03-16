@@ -52,18 +52,26 @@ export default function SellerPage() {
             .from("profiles")
             .select("*")
             .eq("id", id)
-            .single()
+            .maybeSingle()
 
-        if (profile) setSeller(profile)
+        if (profile) {
+            setSeller(profile)
+        } else {
+            // Fallback for sellers without a formal profile record
+            setSeller({
+                username: `merchant_${id.slice(0, 5)}`,
+                id: id
+            })
+        }
 
         // 2. Fetch Seller's Trust Score
         const { data: trustData } = await supabase
             .from("trust_scores")
             .select("score, verified")
             .eq("user_id", id)
-            .single()
+            .maybeSingle()
 
-        setTrust(trustData)
+        setTrust(trustData || { score: 50, verified: false })
 
         // 3. Fetch Seller's Products
         const { data: productsData } = await supabase
@@ -170,7 +178,7 @@ export default function SellerPage() {
             </div>
 
             <div className="mb-12 border-b border-border pb-8">
-                <h2 className="text-h2">The Managed Gallery</h2>
+                <h2 className="text-h2">The Managed Collection</h2>
             </div>
 
             {products.length === 0 ? (

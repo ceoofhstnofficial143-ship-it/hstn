@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import LiveCamera from "@/components/LiveCamera"
+import LiveCamera from "@/app/product/[id]/components/LiveCamera"
 
 export default function UploadPage() {
   const router = useRouter()
@@ -14,7 +14,7 @@ export default function UploadPage() {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [price, setPrice] = useState("")
-  const [category, setCategory] = useState("Co-ord sets")
+  const [category, setCategory] = useState("CO-ORD SETS")
   const [stock, setStock] = useState(1)
   const [sku, setSku] = useState("")
   const [loading, setLoading] = useState(false)
@@ -84,6 +84,13 @@ export default function UploadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
+    
+    // Validate title length
+    if (title.trim().length < 12) {
+      alert("Product title must be at least 12 characters long. Examples: 'Korean Oversized Hoodie', 'Trendy Summer Casual Dress'")
+      return
+    }
+    
     if (!mediaReady) {
       alert("Please complete the authentication protocol with all 6 photos and the fabric motion video.")
       return
@@ -342,8 +349,15 @@ export default function UploadPage() {
     const checkImageMetadata = async (photos: Blob[]): Promise<{hasValidMetadata: boolean, details: any}> => {
       // Check if images have EXIF metadata (indicates real camera photos)
       const hasMetadata = photos.some(async (photo) => {
-        // This would extract EXIF data in a real implementation
-        // For now, we'll assume metadata is present if file is reasonable size
+        // Validate image size and quality
+        if (photo.size > 2 * 1024 * 1024) {
+          alert("Image must be under 2MB")
+          return false
+        }
+        if (photo.size < 10000) {
+          alert("Image is too small, please use a higher quality image")
+          return false
+        }
         return photo.size > 10000 // Basic size check
       })
 
@@ -509,7 +523,7 @@ export default function UploadPage() {
                       <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mx-auto mb-6">
                         <span className="text-2xl">📸</span>
                       </div>
-                      <p className="text-caption font-bold uppercase tracking-widest mb-4">Gallery Upload</p>
+                      <p className="text-caption font-bold uppercase tracking-widest mb-4">File Upload</p>
                       <input
                         type="file"
                         accept="image/*"
@@ -577,11 +591,15 @@ export default function UploadPage() {
                 <div>
                   <label className="text-caption uppercase tracking-widest font-bold block mb-2">Acquisition Title</label>
                   <input
-                    required
-                    placeholder="e.g. Sage Green Co-ord Set"
-                    className="w-full bg-accent/30 border border-transparent rounded-xl px-6 py-4 text-body focus:bg-white focus:border-primary outline-none transition-smooth"
+                    value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                    required
+                    placeholder="e.g. Korean Oversized Summer Hoodie"
+                    className="w-full bg-accent/30 border border-transparent rounded-xl px-6 py-4 text-body focus:bg-white focus:border-primary outline-none transition-smooth"
                   />
+                  <p className={`text-sm mt-2 ${title.length >= 12 ? 'text-green-600' : 'text-orange-600'}`}>
+                    {title.length}/12 characters minimum
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
@@ -667,34 +685,49 @@ export default function UploadPage() {
                     </div>
                   </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <label className="text-caption uppercase tracking-widest font-bold block">Model Reference Context</label>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="relative group">
                           <input
                             required={uploadMode === "authentication"}
-                            placeholder="Ht (cm)"
+                            type="number"
+                            placeholder="Ht"
                             value={modelHeight}
-                            className="w-full bg-accent/20 border-none rounded-xl px-4 py-4 text-[10px] font-bold text-center outline-none"
+                            className="w-full bg-accent/20 border border-transparent rounded-xl pl-4 pr-10 py-4 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth"
                             onChange={(e) => setModelHeight(e.target.value)}
                           />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] uppercase font-bold text-muted pointer-events-none">cm</span>
                         </div>
-                        <div>
+                        <div className="relative group">
                           <input
-                            placeholder="Wt (kg)"
+                            type="number"
+                            placeholder="Wt"
                             value={modelWeight}
-                            className="w-full bg-accent/20 border-none rounded-xl px-4 py-4 text-[10px] font-bold text-center outline-none"
+                            className="w-full bg-accent/20 border border-transparent rounded-xl pl-4 pr-10 py-4 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth"
                             onChange={(e) => setModelWeight(e.target.value)}
                           />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] uppercase font-bold text-muted pointer-events-none">kg</span>
                         </div>
-                        <div>
-                          <input
-                            required={uploadMode === "authentication"}
-                            placeholder="Size Worn"
-                            value={modelSize}
-                            className="w-full bg-accent/20 border-none rounded-xl px-4 py-4 text-[10px] font-bold text-center outline-none"
-                            onChange={(e) => setModelSize(e.target.value)}
-                          />
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-[10px] uppercase tracking-widest font-bold text-muted block">Size Worn by Model</label>
+                        <div className="grid grid-cols-5 gap-2">
+                          {["S", "M", "L", "XL", "XXL"].map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => setModelSize(size)}
+                              className={`py-3 rounded-xl border text-[11px] font-bold uppercase transition-smooth ${
+                                modelSize === size 
+                                  ? 'bg-primary border-primary text-black shadow-lg scale-105' 
+                                  : 'border-border text-muted hover:border-primary/40'
+                              }`}
+                            >
+                              {size}
+                            </button>
+                          ))}
                         </div>
                       </div>
                       <p className="text-[8px] text-muted uppercase tracking-widest leading-relaxed">Example: Model is 165cm wearing Size S.</p>

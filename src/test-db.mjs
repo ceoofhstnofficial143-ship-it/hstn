@@ -10,6 +10,12 @@ async function run() {
     const { data, error } = await supabase.from('products').select('*').limit(1);
     console.log("Product:", data ? Object.keys(data[0] || {}) : data, error);
 
+    const { data: catData } = await supabase.from('products').select('category').eq('admin_status', 'approved');
+    console.log("Categories:", [...new Set(catData.map(p => p.category))]);
+
+    const { data: prods } = await supabase.from('products').select('id, title, admin_status, category').limit(10);
+    console.log("All products:", prods);
+
     const { data: oData, error: oError } = await supabase.from('orders').select('*').limit(1);
     console.log("Order:", oData ? (oData.length ? Object.keys(oData[0]) : oData) : null, oError);
 

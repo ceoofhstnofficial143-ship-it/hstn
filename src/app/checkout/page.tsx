@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { getTrustTier } from "@/lib/trustTier"
 import { supabase } from "@/lib/supabase"
+import { Analytics } from "@/lib/analytics"
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -14,7 +16,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const fetchCartTrust = async () => {
-      const items = JSON.parse(localStorage.getItem("hstn-checkout-items") || "[]")
+      const items = JSON.parse(localStorage.getItem("hstn_checkout_items") || "[]")
       if (items.length === 0) {
         router.push("/cart")
         return
@@ -38,21 +40,82 @@ export default function CheckoutPage() {
     fetchCartTrust()
   }, [router])
 
-  const total = cartItems.reduce((acc, item) => acc + (item.price * (item.quantity || 1)), 0)
+  const total = cartItems.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0)
 
-  const handlePlaceOrder = () => {
-    alert("Protocol Synchronized: Acquisition Confirmed! 🎉")
+  const handlePlaceOrder = async () => {
+    setLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert("Authentication Required: Please sign in to initiate acquisition.")
+        router.push("/login")
+        return
+      }
 
-    // Remove only the items that were checked out
-    const fullCart = JSON.parse(localStorage.getItem("hstn-cart") || "[]")
-    const purchasedIds = cartItems.map(i => i.id)
-    const remainingCart = fullCart.filter((item: any) => !purchasedIds.includes(item.id))
+      // Prepare items for the RPC
+      const itemsForRpc = cartItems.map(item => ({
+        product_id: item.productId,
+        quantity: item.qty || 1,
+        expected_price: item.price,
+        selected_size: item.size || "N/A"
+      }))
 
-    localStorage.setItem("hstn-cart", JSON.stringify(remainingCart))
-    localStorage.removeItem("hstn-checkout-items")
+      // Get shipping data from the form
+      const shippingData = {
+        fullName: (document.querySelector('input[placeholder="Full Name"]') as HTMLInputElement)?.value,
+        phone: (document.querySelector('input[placeholder="Phone Number"]') as HTMLInputElement)?.value,
+        address: (document.querySelector('input[placeholder="Shipping Address"]') as HTMLInputElement)?.value,
+        city: (document.querySelector('input[placeholder="City"]') as HTMLInputElement)?.value,
+        pincode: (document.querySelector('input[placeholder="ZIP / Pincode"]') as HTMLInputElement)?.value || "000000"
+      }
 
-    window.dispatchEvent(new Event("hstn-cart-updated"))
-    router.push("/orders")
+      if (!shippingData.fullName || !shippingData.phone || !shippingData.address) {
+        alert("Logistics context required: Please complete shipping fields.")
+        setLoading(false)
+        return
+      }
+
+      // Execute atomic bulk transaction
+      const { data, error } = await supabase.rpc("place_bulk_order", {
+        p_items: itemsForRpc,
+        p_full_name: shippingData.fullName,
+        p_phone: shippingData.phone,
+        p_address: shippingData.address,
+        p_city: shippingData.city,
+        p_pincode: shippingData.pincode
+      })
+
+      if (error) throw error
+      if (data && !data.ok) throw new Error(data.message)
+
+      // 4. Protocol Finalization
+      alert("Protocol Synchronized: Acquisition Confirmed! 🎉")
+
+      // Log Revenue Pulse
+      if (data && data.order_id) {
+        Analytics.logCheckoutComplete(user.id, data.order_id)
+      }
+
+      // Clear Purchased Items from Main Cart
+      const fullCart = JSON.parse(localStorage.getItem("hstn_cart") || "[]")
+      const purchasedKeys = cartItems.map(i => `${i.productId}-${i.size}`)
+      
+      const remainingCart = fullCart.filter((item: any) => {
+        const itemKey = `${item.productId}-${item.size}`
+        return !purchasedKeys.includes(itemKey)
+      })
+
+      localStorage.setItem("hstn_cart", JSON.stringify(remainingCart))
+      localStorage.removeItem("hstn_checkout_items")
+
+      window.dispatchEvent(new Event("hstn-cart-updated"))
+      router.push("/orders")
+    } catch (error: any) {
+      console.error("Order processing error:", error)
+      alert(`Acquisition protocol failed: ${error.message || "Internal Error"}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) return (
@@ -158,7 +221,7 @@ export default function CheckoutPage() {
                 {cartItems.map(item => {
                   const tier = getTrustTier(item.trust?.score)
                   return (
-                    <div key={item.id} className="space-y-4 p-4 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-smooth">
+                    <div key={item.productId} className="space-y-4 p-4 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-smooth">
 
                       {/* Status Reinforcement Block */}
                       <div className="flex items-center gap-4 border-b border-white/10 pb-4">
@@ -178,32 +241,52 @@ export default function CheckoutPage() {
                       </div>
 
                       <div className="flex gap-4">
-                        {item.image_url && (
-                          <div className="w-16 h-20 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                            <img src={item.image_url} className="w-full h-full object-cover" alt={item.title} />
+                        {item.image && (
+                          <div className="w-16 h-20 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10 relative">
+                            <Image 
+                              src={item.image || 'https://images.unsplash.com/photo-1594932224010-74f43a02476b?q=80&w=2000'} 
+                              className="object-cover" 
+                              alt={item.title} 
+                              fill
+                              sizes="64px"
+                              onError={(e: any) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1594932224010-74f43a02476b?q=80&w=2000'
+                              }}
+                            />
                           </div>
                         )}
 
-                        <div className="flex flex-col flex-1 justify-between py-1">
-                          <div>
-                            <div className="flex justify-between items-start text-caption">
-                              <span className="text-white/80 line-clamp-2 leading-relaxed font-medium">{item.title}</span>
+                          <div className="flex flex-col flex-1 justify-between py-1">
+                            <div>
+                               <div className="flex justify-between items-start text-caption">
+                                 <span className="text-white/80 line-clamp-1 leading-relaxed font-medium">{item.title}</span>
+                               </div>
+                               <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] text-primary font-bold uppercase tracking-widest">Size {item.size}</span>
+                                  {item.selectedColor && (
+                                    <>
+                                      <span className="text-white/20 text-[10px]">|</span>
+                                      <span className="text-[10px] text-white/40 uppercase tracking-widest">{item.selectedColor}</span>
+                                    </>
+                                  )}
+                                  <span className="text-white/20 text-[10px]">|</span>
+                                  <span className="text-[10px] text-white/40 uppercase tracking-widest">Qty: {item.qty || 1}</span>
+                               </div>
+                               <span className="font-bold text-primary text-sm mt-2 block">₹ {(item.price * (item.qty || 1)).toLocaleString()}</span>
                             </div>
-                            <span className="font-bold text-primary text-body mt-1 block">₹ {(item.price * (item.quantity || 1)).toLocaleString()}</span>
-                          </div>
 
-                          {/* Trusted Fabric Seller Signal */}
-                          {(item.trust?.verified || item.video_url) && (
-                            <div className="flex items-start gap-2 mt-3 p-2 bg-green-500/10 rounded-md border border-green-500/20">
-                              <span className="text-green-500 text-xs mt-0.5">🛡️</span>
-                              <div>
-                                <p className="text-[9px] font-bold text-green-500 uppercase tracking-widest">Video-Verified Fabric</p>
-                                <p className="text-[8px] text-green-500/70 uppercase tracking-tighter mt-0.5">Authenticated through motion capture.</p>
+                            {/* Trusted Fabric Seller Signal */}
+                            {(item.trust?.verified || item.video_url) && (
+                              <div className="flex items-start gap-2 mt-3 p-2 bg-green-500/10 rounded-md border border-green-500/20">
+                                <span className="text-green-500 text-xs mt-0.5">🛡️</span>
+                                <div>
+                                  <p className="text-[9px] font-bold text-green-500 uppercase tracking-widest">Video-Verified Fabric</p>
+                                  <p className="text-[8px] text-green-500/70 uppercase tracking-tighter mt-0.5">Authenticated through motion capture.</p>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
 
-                        </div>
+                          </div>
                       </div>
                     </div>
                   )

@@ -1,59 +1,79 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import React from "react"
 
 export default function Navbar() {
   const router = useRouter()
+  const pathname = usePathname()
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
+  const [wishlistCount, setWishlistCount] = useState(0)
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen)
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      router.push(`/products?search=${encodeURIComponent(searchQuery)}`)
+
+
+  const fetchWishlistCount = async () => {
+    if (!user) return
+    
+    const { data } = await supabase
+      .from("wishlist")
+      .select("*")
+      .eq("user_id", user.id);
+
+    setWishlistCount(data?.length || 0)
+  }
+
+  const handleCategoryClick = (category: string) => {
+    setIsMobileMenuOpen(false)
+    if (pathname === "/") {
+      window.dispatchEvent(new CustomEvent('hstn-category', { detail: category }))
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    } else {
+      router.push(`/?category=${encodeURIComponent(category)}`)
     }
   }
 
   const NavLinks = ({ mobile = false }) => (
     <>
-      <Link
-        href="/products"
-        onClick={() => setIsMobileMenuOpen(false)}
-        className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-medium uppercase tracking-widest hover:text-primary transition-smooth`}
-      >
-        Gallery
-      </Link>
+      {/* Gallery link removed as per user request — home page shows products directly */}
       {mobile && (
         <>
-          <Link
-            href="/products?filter=new"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-medium uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
+          <button
+            onClick={() => handleCategoryClick("ALL")}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} w-full font-medium uppercase tracking-widest hover:text-primary transition-smooth text-left flex items-center gap-2`}
           >
-            🔥 New Arrivals
-          </Link>
-          <Link
-            href="/products?filter=trending"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-medium uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
+            🌟 All Products
+          </button>
+          <button
+            onClick={() => handleCategoryClick("CO-ORD SETS")}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} w-full font-medium uppercase tracking-widest hover:text-primary transition-smooth text-left flex items-center gap-2`}
           >
-            ⭐ Trending Now
-          </Link>
-          <Link
-            href="/products?filter=premium"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-medium uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
+            👗 Co-ord Sets
+          </button>
+          <button
+            onClick={() => handleCategoryClick("TRENDY TOPS")}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} w-full font-medium uppercase tracking-widest hover:text-primary transition-smooth text-left flex items-center gap-2`}
           >
-            💎 Premium Picks
-          </Link>
+            👚 Trendy Tops
+          </button>
+          <button
+            onClick={() => handleCategoryClick("CASUAL DRESSES")}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} w-full font-medium uppercase tracking-widest hover:text-primary transition-smooth text-left flex items-center gap-2`}
+          >
+            🥻 Casual Dresses
+          </button>
+          <button
+            onClick={() => handleCategoryClick("KOREAN-STYLE FASHION")}
+            className={`${mobile ? 'text-h2 py-4' : 'text-caption'} w-full font-medium uppercase tracking-widest hover:text-primary transition-smooth text-left flex items-center gap-2`}
+          >
+            ✨ Korean-Style
+          </button>
         </>
       )}
       {user && (
@@ -70,7 +90,7 @@ export default function Navbar() {
             onClick={() => setIsMobileMenuOpen(false)}
             className={`${mobile ? 'text-h2 py-4' : 'text-caption'} font-semibold uppercase tracking-widest hover:text-primary transition-smooth flex items-center gap-2`}
           >
-            ❤️ Wishlist
+            ❤️ Wishlist {wishlistCount > 0 && `(${wishlistCount})`}
           </Link>
           <Link
             href="/seller/dashboard"
@@ -99,6 +119,9 @@ export default function Navbar() {
       setUser(u ?? null)
       setLoading(false)
       updateCartCount()
+      if (u) {
+        await fetchWishlistCount()
+      }
     }
     init()
 
@@ -142,8 +165,8 @@ export default function Navbar() {
   }
 
   return (
-    <>
-      <header className="w-full border-b bg-background/80 backdrop-blur-md">
+    <div className="relative">
+      <header className="w-full border-b bg-background/80 backdrop-blur-md relative z-[100]">
       <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3">
 
         {/* Left Section: Mobile Menu + Logo */}
@@ -158,31 +181,17 @@ export default function Navbar() {
           <Link href="/" className="text-xl font-bold text-foreground hover:opacity-80 transition-smooth">
             HSTN
           </Link>
+          {/* Desktop NavLinks moved to top row next to logo */}
+          <div className="hidden lg:flex items-center gap-8 ml-8">
+            <NavLinks />
+          </div>
         </div>
 
-        {/* Center Section: Desktop Search */}
-        <div className="hidden lg:block flex-1 mx-6">
-          <form onSubmit={handleSearch} className="max-w-md mx-auto">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search fashion..."
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </form>
-        </div>
+        {/* Center Section Search Removed as per user request */}
 
         {/* Right Section: Actions */}
         <div className="flex items-center gap-4">
-          {/* Mobile Search */}
-          <button
-            onClick={() => router.push("/products")}
-            className="lg:hidden text-xl"
-            aria-label="Search"
-          >
-            🔍
-          </button>
+
 
           {/* Cart */}
           <Link href="/cart" className="relative group">
@@ -244,15 +253,10 @@ export default function Navbar() {
 
       </div>
 
-      {/* Desktop Navigation Bar */}
-      <div className="hidden lg:block border-t border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-8 py-2">
-            <NavLinks />
-          </div>
-        </div>
-      </div>
+      {/* NavLinks moved up */}
     </header>
+
+
 
     {/* Mobile Menu Overlay - Outside header to prevent clipping */}
     {isMobileMenuOpen && (
@@ -275,16 +279,7 @@ export default function Navbar() {
               ✕
             </button>
 
-            {/* Mobile Search */}
-            <form onSubmit={handleSearch} className="mb-6">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search fashion..."
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </form>
+
 
             <NavLinks mobile />
 
@@ -331,6 +326,6 @@ export default function Navbar() {
         </div>
       </div>
     )}
-    </>
+    </div>
   )
 }

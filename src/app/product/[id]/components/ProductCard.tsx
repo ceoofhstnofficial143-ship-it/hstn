@@ -22,7 +22,6 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
     const handleProductClick = () => {
         updateProductViews(product.id)
     }
-
     // FullScreen mode for DiscoveryFeed
     if (fullScreen) {
         return (
@@ -59,7 +58,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                 <div className="absolute bottom-4 right-4 text-xs text-white opacity-70">
                     Swipe ↑
                 </div>
-                <Link href={`/product/${product.id}`} className="absolute inset-0" />
+                <Link href={`/products/${product.id}`} className="absolute inset-0" />
             </div>
         )
     }
@@ -88,7 +87,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
 
             {/* Hover Actions - Desktop Only */}
             <div className="actions absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden md:flex flex-col gap-2">
-                <button
+                <button 
                     onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
@@ -99,7 +98,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                 >
                     <span className="text-sm">👁</span>
                 </button>
-                <button
+                <button 
                     onClick={async (e) => {
                         e.preventDefault()
                         e.stopPropagation()

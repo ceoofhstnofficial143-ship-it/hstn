@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import SupabaseProvider from "@/components/SupabaseProvider";
+import Navbar from "@/app/product/[id]/components/Navbar";
+import SupabaseProvider from "@/app/product/[id]/components/SupabaseProvider";
 import { supabase } from "@/lib/supabase";
 
 const geistSans = Geist({
