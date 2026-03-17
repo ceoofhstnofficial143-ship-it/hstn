@@ -133,7 +133,7 @@ export default function Home() {
     let queryBuilder = supabase
       .from("products")
       .select(`
-        id, title, price, image_url, category, user_id, stock, views, admin_status, created_at, video_url, measurements,
+        id, title, price, image_url, category, user_id, stock, views, admin_status, created_at, video_url, measurements, additional_images,
         profiles!products_user_id_fkey(username)
       `)
       .eq("admin_status", "approved")
@@ -250,7 +250,7 @@ export default function Home() {
     let queryBuilder = supabase
       .from("products")
       .select(`
-        id, title, price, image_url, category, user_id, stock, views, admin_status, created_at, video_url, measurements,
+        id, title, price, image_url, category, user_id, stock, views, admin_status, created_at, video_url, measurements, additional_images,
         profiles!products_user_id_fkey(username)
       `)
       .eq("admin_status", "approved")
