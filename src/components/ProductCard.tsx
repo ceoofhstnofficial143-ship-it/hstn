@@ -92,17 +92,24 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                     />
                 )}
 
-                {/* TRENDING BADGE */}
-                {(product.views > 50 || product.stock <= 5) && (
-                    <span className="absolute top-3 left-3 bg-black text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest z-10 shadow-sm">
-                        {product.stock <= 5 && product.stock > 0 ? '🔥 Limited' : '🔥 Trending'}
-                    </span>
-                )}
-                {product.is_bundle && (
-                    <span className="absolute top-10 left-3 bg-white text-black px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest z-10 shadow-sm border border-gray-100">
-                        Outfit Bundle
-                    </span>
-                )}
+                {/* TRENDING / DISCOUNT BADGES */}
+                <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 items-start">
+                    {(product.views > 50 || product.stock <= 5) && (
+                        <span className="bg-black text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest shadow-sm">
+                            {product.stock <= 5 && product.stock > 0 ? '🔥 Limited' : '🔥 Trending'}
+                        </span>
+                    )}
+                    {product.original_price && product.original_price > product.price && (
+                        <span className="bg-red-500 text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest shadow-sm">
+                            {Math.round((1 - product.price / product.original_price) * 100)}% OFF
+                        </span>
+                    )}
+                    {product.is_bundle && (
+                        <span className="bg-white text-black px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest shadow-sm border border-gray-100">
+                            Outfit Bundle
+                        </span>
+                    )}
+                </div>
             </Link>
 
             {/* Quick Actions overlay on Image */}
@@ -165,15 +172,34 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
-                    <div className="text-xs text-gray-500 truncate">
-                        @{product.profiles?.username || product.seller_username || 'seller'}
+                    <div className="text-xs text-gray-500 truncate flex items-center gap-2">
+                        <span>@{product.profiles?.username || product.seller_username || 'seller'}</span>
+                        {product.style_tags && product.style_tags.length > 0 && (
+                            <span className="text-[9px] text-gray-500 bg-gray-100 px-1 py-0.5 rounded uppercase font-bold tracking-widest hidden sm:block">
+                                #{product.style_tags[0]}
+                            </span>
+                        )}
                     </div>
-                    {product.style_tags && product.style_tags.length > 0 && (
-                        <div className="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded hidden sm:block">
-                            #{product.style_tags[0]}
-                        </div>
-                    )}
+                    {/* Delivery Status */}
+                    <div className="text-[10px] font-black uppercase tracking-tighter text-green-600">
+                        Free Delivery
+                    </div>
                 </div>
+
+                {/* QUICK ACTION */}
+                <button 
+                    onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        alert(`Added ${product.title} to cart 🛒`)
+                    }}
+                    className="w-full mt-3 bg-black text-white text-[10px] font-black uppercase tracking-widest py-2.5 rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Quick Add
+                </button>
             </div>
         </div>
     )
