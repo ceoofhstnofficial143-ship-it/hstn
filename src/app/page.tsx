@@ -55,7 +55,7 @@ export default function Home() {
     }
 
     if (selectedSize) {
-      result = result.filter((p) => p.size === selectedSize)
+      result = result.filter((p) => p.measurements?.size === selectedSize)
     }
 
     if (inStockOnly) {
@@ -133,7 +133,7 @@ export default function Home() {
     let queryBuilder = supabase
       .from("products")
       .select(`
-        id, title, price, image_url, category, user_id, stock, views, admin_status, created_at, video_url,
+        id, title, price, image_url, category, user_id, stock, views, admin_status, created_at, video_url, measurements,
         profiles!products_user_id_fkey(username)
       `)
       .eq("admin_status", "approved")
@@ -250,13 +250,21 @@ export default function Home() {
     let queryBuilder = supabase
       .from("products")
       .select(`
-        id, title, price, image_url, category, user_id, stock, views, admin_status, created_at, video_url,
+        id, title, price, image_url, category, user_id, stock, views, admin_status, created_at, video_url, measurements,
         profiles!products_user_id_fkey(username)
       `)
       .eq("admin_status", "approved")
       .or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,description.ilike.%${trimmedQuery}%`)
       .order("created_at", { ascending: false })
       .limit(20);
+
+    // Apply active filters to search results
+    if (selectedCategory && selectedCategory !== "ALL") {
+      queryBuilder = queryBuilder.eq("category", selectedCategory)
+    }
+    if (priceRange) queryBuilder = queryBuilder.gte("price", priceRange.min).lte("price", priceRange.max)
+    if (selectedSize) queryBuilder = queryBuilder.eq("measurements->>size", selectedSize)
+    if (inStockOnly) queryBuilder = queryBuilder.gt("stock", 0)
 
     const { data } = await queryBuilder;
 
