@@ -317,7 +317,7 @@ export default function Home() {
     setSearchSuggestions(suggestions.slice(0, 8))
   }
 
-  const trendingTags = ["Streetwear", "Co-ord Sets", "Korean", "Luxury", "Casual Dresses", "Trendy Tops"]
+  const trendingTags = ["Co-ord Sets", "Korean", "Casual Dresses", "Trendy Tops"]
 
   // Removed full-screen loading skeleton to prevent UI fluctuation/flickering.
   // Instead, the skeletons render directly in the products grid.
