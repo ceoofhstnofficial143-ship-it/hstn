@@ -76,7 +76,7 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
             } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                 setCameraError("Camera access denied. Please enable it in browser settings and refresh the page.")
             } else {
-                setCameraError("Unable to initialize HSTN Secure Camera.")
+                setCameraError("Unable to initialize HSTNLX Secure Camera.")
             }
         }
     }
@@ -311,7 +311,7 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
                 {/* Watermark */}
                 <div className="absolute bottom-10 right-10 flex flex-col items-end opacity-40 pointer-events-none">
                     <span className="text-[8px] uppercase tracking-[0.4em] text-white font-bold mb-1">Authenticated by</span>
-                    <span className="text-caption font-bold text-primary italic tracking-tight">HSTN PROTOCOL</span>
+                    <span className="text-caption font-bold text-primary italic tracking-tight">HSTNLX PROTOCOL</span>
                 </div>
             </div>
 
@@ -372,7 +372,7 @@ export default function LiveCamera({ onCaptureComplete, onCancel }: LiveCameraPr
 
             {/* Footer Toast */}
             <div className="mt-auto text-white/40 text-[9px] uppercase tracking-[0.4em] font-bold">
-                HSTN Proprietary High-Resolution Capture
+                HSTNLX Proprietary High-Resolution Capture
             </div>
         </div>
     )

@@ -8,10 +8,11 @@ import ProductCard from "./ProductCard"
 
 interface OutfitBundleV2Props {
     bundleId?: string
+    productId?: string
     limit?: number
 }
 
-export default function OutfitBundleV2({ bundleId, limit = 1 }: OutfitBundleV2Props) {
+export default function OutfitBundleV2({ bundleId, productId, limit = 1 }: OutfitBundleV2Props) {
     const [bundles, setBundles] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
 
@@ -24,20 +25,33 @@ export default function OutfitBundleV2({ bundleId, limit = 1 }: OutfitBundleV2Pr
             
             if (bundleId) {
                 query = query.eq("id", bundleId)
-            } else {
-                query = query.limit(limit)
+            } else if (productId) {
+                query = query.contains("product_ids", [productId])
             }
+            
+            query = query.limit(limit)
 
             const { data: bundleData, error: bundleError } = await query
             
-            if (bundleError || !bundleData) {
-                setLoading(false)
+            if (bundleError || !bundleData || bundleData.length === 0) {
+                if (productId) {
+                    // Fallback to general bundles if product specific not found
+                    const { data: fallback } = await supabase.from("outfit_bundles").select("*").limit(limit)
+                    if (fallback) fetchProducts(fallback)
+                    else setLoading(false)
+                } else {
+                    setLoading(false)
+                }
                 return
             }
 
+            fetchProducts(bundleData)
+        }
+
+        const fetchProducts = async (bundleData: any[]) => {
             const bundlesWithProducts = await Promise.all(
                 bundleData.map(async (bundle) => {
-                    const { data: products, error: productsError } = await supabase
+                    const { data: products } = await supabase
                         .from("products")
                         .select("*")
                         .in("id", bundle.product_ids)
@@ -52,7 +66,7 @@ export default function OutfitBundleV2({ bundleId, limit = 1 }: OutfitBundleV2Pr
         }
 
         fetchBundles()
-    }, [bundleId, limit])
+    }, [bundleId, productId, limit])
 
     if (loading || bundles.length === 0) return null
 

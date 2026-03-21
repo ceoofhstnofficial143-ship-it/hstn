@@ -58,7 +58,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                 <div className="absolute bottom-4 right-4 text-xs text-white opacity-70">
                     Swipe ↑
                 </div>
-                <Link href={`/products/${product.id}`} className="absolute inset-0" />
+                <Link href={`/product/${product.id}`} className="absolute inset-0" />
             </div>
         )
     }

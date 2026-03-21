@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import Image from "next/image"
+import { NotificationProtocol } from "@/lib/notifications"
 import { getTrustTier } from "@/lib/trustTier"
 
 export default function SellerDashboard() {
@@ -13,6 +14,8 @@ export default function SellerDashboard() {
     const [loading, setLoading] = useState(true)
     const [user, setUser] = useState<any>(null)
 
+    const [kyb, setKyb] = useState<any>(null)
+
     useEffect(() => {
         const fetchSellerData = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -21,6 +24,21 @@ export default function SellerDashboard() {
                 return
             }
             setUser(user)
+
+            // 🏛️ INSTITUTIONAL AUDIT: Check KYB Status
+            const { data: kybData } = await supabase
+                .from("seller_kyb")
+                .select("*")
+                .eq("user_id", user.id)
+                .single()
+
+            if (!kybData || !kybData.is_verified) {
+                // If they haven't onboarded OR are pending verification, force onboarding
+                const { push } = require('next/navigation').useRouter() // Fallback if router not available in scope
+                window.location.href = "/seller/onboarding"
+                return
+            }
+            setKyb(kybData)
 
             // Get seller trust score
             const { data: trustData } = await supabase
@@ -81,6 +99,54 @@ export default function SellerDashboard() {
         fetchSellerData()
     }, [])
 
+    const handleUpdateStatus = async (orderId: string, currentStatus: string) => {
+        const nextStates: { [key: string]: string } = {
+            'confirmed': 'packed',
+            'packed': 'shipped',
+            'shipped': 'delivered'
+        }
+        
+        const nextStatus = nextStates[currentStatus]
+        if (!nextStatus) return
+
+        let trackingPayload: any = { status: nextStatus }
+
+        if (nextStatus === 'shipped') {
+            const provider = prompt(`Initialize SHIPPING protocol for Order #${orderId.slice(0, 8)}.\n\nEnter Tracking Provider (e.g., Delhivery, BlueDart):`)
+            if (!provider) return alert("Shipping aborted: Tracking Provider required.")
+            
+            const trkNumber = prompt(`Enter AWB/Tracking Number for ${provider}:`)
+            if (!trkNumber) return alert("Shipping aborted: Tracking Number required.")
+
+            trackingPayload.tracking_provider = provider
+            trackingPayload.tracking_number = trkNumber
+        } else {
+            if (!confirm(`Initialize ${nextStatus.toUpperCase()} protocol for Order #${orderId.slice(0, 8)}?`)) return
+        }
+
+        const { error } = await supabase
+            .from("orders")
+            .update(trackingPayload)
+            .eq("id", orderId)
+            // Ensure the seller owns one of the items in this order (simplified check)
+            .eq("seller_id", user.id)
+
+        if (error) {
+            alert(`Fulfillment Protocol Failure: ${error.message}`)
+        } else {
+            setOrders(orders.map(o => o.id === orderId ? { ...o, ...trackingPayload } : o))
+            
+            // 📧 PROTOCOL DISPATCH
+            NotificationProtocol.send({
+                userId: orders.find(o => o.id === orderId)?.buyer_id,
+                type: nextStatus === 'shipped' ? 'order_shipped' : nextStatus === 'delivered' ? 'order_delivered' : 'order_confirmed',
+                data: { orderId, tracking_provider: trackingPayload.tracking_provider, tracking_number: trackingPayload.tracking_number }
+            });
+
+            alert(`Order successfully transitioned to ${nextStatus}.`)
+        }
+    }
+
     const handleDeleteProduct = async (productId: string) => {
         if (!confirm("Are you sure you want to permanently decommission this asset? This action is irreversible.")) return
 
@@ -126,18 +192,23 @@ export default function SellerDashboard() {
                 {/* Header Section */}
                 <header className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end border-b border-border pb-8 gap-6">
                     <div>
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-primary font-bold">Merchant Protocol</span>
+                        <span className="text-[10px] uppercase tracking-[0.3em] text-primary font-bold">Merchant Hub • {kyb?.store_name}</span>
                         <h1 className="text-3xl lg:text-5xl mt-2 italic font-black uppercase tracking-tighter">Command Center</h1>
                         <p className="text-muted text-[9px] mt-2 uppercase tracking-[0.2em] font-medium opacity-60">
-                            Authorized Session: {user?.email}
+                            Protocol Secured • Payout Coordinate: <span className="text-foreground border-b border-border">{kyb?.upi_id}</span>
                         </p>
                     </div>
                     <div className="flex items-center gap-4 w-full md:w-auto">
+                        <Link href="/seller/onboarding" className="luxury-button !py-4 !px-8 !text-[10px] !bg-white/5 !border-white/10 !text-white/40 hover:!text-white uppercase tracking-[0.2em] font-bold">
+                            Profile Hub
+                        </Link>
                         <Link href="/upload" className="luxury-button !py-4 !px-8 !text-[10px] uppercase tracking-[0.2em] font-bold shadow-lg flex-1 md:flex-none text-center">
                             + List New Asset
                         </Link>
                     </div>
                 </header>
+
+                {/* Verification Guard Moved to Hard Redirect */}
 
                 <div className="flex flex-col lg:flex-row gap-12">
 
@@ -342,14 +413,24 @@ export default function SellerDashboard() {
                                                             <p className="text-xs font-black text-foreground">₹{(order.item_price || prod.price).toLocaleString()} <span className="text-[9px] text-muted ml-1">x {order.quantity || 1}</span></p>
                                                             <p className="text-[9px] text-muted font-bold uppercase tracking-widest mt-1">Acquired Value</p>
                                                         </div>
-                                                        <div className={`px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-[0.2em] border shadow-sm ${
-                                                            order.status === 'delivered' ? 'bg-green-50 border-green-200 text-green-700' :
-                                                            order.status === 'shipped' ? 'bg-blue-50 border-blue-200 text-blue-700' :
-                                                            'bg-primary/10 border-primary/20 text-primary'
-                                                        }`}>
-                                                            {order.status}
+                                                        <div className="flex items-center gap-4">
+                                                            <div className={`px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-[0.2em] border shadow-sm ${
+                                                                order.status === 'delivered' ? 'bg-green-50 border-green-200 text-green-700' :
+                                                                order.status === 'shipped' ? 'bg-blue-50 border-blue-200 text-blue-700' :
+                                                                'bg-primary/10 border-primary/20 text-primary'
+                                                            }`}>
+                                                                {order.status}
+                                                            </div>
+                                                            {['confirmed', 'packed', 'shipped'].includes(order.status) && (
+                                                                <button 
+                                                                    onClick={() => handleUpdateStatus(order.id, order.status)}
+                                                                    className="w-8 h-8 rounded-lg bg-black text-white flex items-center justify-center text-[10px] hover:bg-primary transition-all shadow-lg"
+                                                                    title="Transition Status"
+                                                                >
+                                                                    →
+                                                                </button>
+                                                            )}
                                                         </div>
-                                                        <span className="text-lg opacity-0 group-hover:opacity-40 transition-opacity hidden sm:block">→</span>
                                                     </div>
                                                 </div>
                                             )

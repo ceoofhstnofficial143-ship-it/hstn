@@ -1,27 +1,30 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { supabase } from "@/lib/supabase"
 import { rankProducts } from "@/lib/feedRanker"
 import ProductCard from "@/components/ProductCard"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import ProductSkeleton from "@/components/ProductSkeleton"
 import DiscoveryFeed from "@/components/DiscoveryFeed"
 import StyleQuiz from "@/components/StyleQuiz"
 import OutfitBundleV2 from "@/components/OutfitBundleV2"
 import FollowingFeed from "@/components/FollowingFeed"
+import { trackEvent } from "@/lib/analytics"
 
 export default function Home() {
+  const searchParams = useSearchParams()
   const [products, setProducts] = useState<any[]>([])
   const [featured, setFeatured] = useState<any[]>([])
   const [newProducts, setNewProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState("ALL")
   const [query, setQuery] = useState("")
-  const [searchSuggestions, setSearchSuggestions] = useState<any[]>([])
+  const [searchSuggestions, setSearchSuggestions] = useState<{ products: any[]; categories: any[] }>({ products: [], categories: [] })
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showTrending, setShowTrending] = useState(false)
   const [searchCache, setSearchCache] = useState<Record<string, any[]>>({})
   const [priceRange, setPriceRange] = useState<{ min: number; max: number } | null>(null)
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
@@ -36,13 +39,14 @@ export default function Home() {
   const [userStyles, setUserStyles] = useState<string[]>([])
   const pageSize = 12
   const router = useRouter()
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const categories = [
     "ALL",
     "CO-ORD SETS", 
     "TRENDY TOPS",
     "CASUAL DRESSES",
-    "KOREAN STYLE"
+    "KOREAN-STYLE FASHION"
   ]
 
   const filteredProducts = useMemo(() => {
@@ -54,10 +58,6 @@ export default function Home() {
       )
     }
 
-    if (selectedSize) {
-      result = result.filter((p) => p.measurements?.size === selectedSize)
-    }
-
     if (inStockOnly) {
       result = result.filter((p) => p.stock > 0)
     }
@@ -67,19 +67,47 @@ export default function Home() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
-    
+
+    // Read ?category= from URL (when navigating from another page)
+    const urlCategory = searchParams.get('category')
+    if (urlCategory) {
+      const matched = categories.find(
+        c => c.toLowerCase() === urlCategory.toLowerCase()
+      )
+      if (matched) setSelectedCategory(matched)
+    }
+
+    // Listen to hstnlx-category event (when already on homepage)
+    const handleCategoryEvent = (e: Event) => {
+      const cat = (e as CustomEvent).detail as string
+      const matched = categories.find(
+        c => c.toLowerCase() === cat.toLowerCase()
+      )
+      if (matched) {
+        setSelectedCategory(matched)
+        setQuery('')
+        setShowSuggestions(false)
+        setViewMode('grid')
+      }
+    }
+    window.addEventListener('hstnlx-category', handleCategoryEvent)
+
     // Check for saved styles
-    const savedStyles = localStorage.getItem('hstn_user_styles')
+    const savedStyles = localStorage.getItem('hstnlx_user_styles')
     if (!savedStyles) {
-        setShowQuiz(true)
+      setShowQuiz(true)
     } else {
-        setUserStyles(JSON.parse(savedStyles))
+      setUserStyles(JSON.parse(savedStyles))
+    }
+
+    return () => {
+      window.removeEventListener('hstnlx-category', handleCategoryEvent)
     }
   }, [])
 
   const handleQuizComplete = (styles: string[]) => {
       setUserStyles(styles)
-      localStorage.setItem('hstn_user_styles', JSON.stringify(styles))
+      localStorage.setItem('hstnlx_user_styles', JSON.stringify(styles))
       setShowQuiz(false)
       setViewMode('feed') // Switch to feed to show personalized content
   }
@@ -142,10 +170,31 @@ export default function Home() {
     
     // Server-side filters
     if (selectedCategory && selectedCategory !== "ALL") {
-      queryBuilder = queryBuilder.eq("category", selectedCategory)
+      queryBuilder = queryBuilder.ilike("category", selectedCategory)
     }
     if (priceRange) queryBuilder = queryBuilder.gte("price", priceRange.min).lte("price", priceRange.max)
-    if (selectedSize) queryBuilder = queryBuilder.eq("measurements->>size", selectedSize) // Fix size lookup
+    if (selectedSize) {
+      const { data: variantData } = await supabase
+        .from('product_variants')
+        .select('product_id')
+        .eq('size', selectedSize)
+        .gt('stock', 0)
+      
+      const productIds = variantData?.map(v => v.product_id) || []
+      
+      if (productIds.length > 0) {
+        queryBuilder = queryBuilder.in('id', productIds)
+      } else {
+        // Return empty results if no products have this size variant
+        if (!isLoadMore) {
+          setProducts([])
+        }
+        setHasMore(false)
+        setLoading(false)
+        setIsLoadingMore(false)
+        return
+      }
+    }
     if (inStockOnly) queryBuilder = queryBuilder.gt("stock", 0)
 
     const { data, error } = await queryBuilder
@@ -228,6 +277,9 @@ export default function Home() {
       return
     }
 
+    // Track search event
+    trackEvent('search', { query: trimmedQuery, category: selectedCategory })
+
     // 6️⃣ Speed Trick: Check Cache
     if (searchCache[trimmedQuery]) {
       setProducts(searchCache[trimmedQuery])
@@ -260,10 +312,28 @@ export default function Home() {
 
     // Apply active filters to search results
     if (selectedCategory && selectedCategory !== "ALL") {
-      queryBuilder = queryBuilder.eq("category", selectedCategory)
+      queryBuilder = queryBuilder.ilike("category", selectedCategory)
     }
     if (priceRange) queryBuilder = queryBuilder.gte("price", priceRange.min).lte("price", priceRange.max)
-    if (selectedSize) queryBuilder = queryBuilder.eq("measurements->>size", selectedSize)
+    if (selectedSize) {
+      const { data: variantData } = await supabase
+        .from('product_variants')
+        .select('product_id')
+        .eq('size', selectedSize)
+        .gt('stock', 0)
+      
+      const productIds = variantData?.map(v => v.product_id) || []
+      
+      if (productIds.length > 0) {
+        queryBuilder = queryBuilder.in('id', productIds)
+      } else {
+        // Return empty results if no products have this size variant
+        setProducts([])
+        setHasMore(false)
+        setLoading(false)
+        return
+      }
+    }
     if (inStockOnly) queryBuilder = queryBuilder.gt("stock", 0)
 
     const { data } = await queryBuilder;
@@ -286,46 +356,50 @@ export default function Home() {
     setLoading(false)
   }
 
+  const [trendingTags, setTrendingTags] = useState<string[]>(["Streetwear", "Luxury", "Korean Style"])
+
+  useEffect(() => {
+    const fetchTrending = async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("category")
+        .eq("admin_status", "approved")
+        .order("views", { ascending: false })
+        .limit(10)
+      
+      if (data) {
+        const unique = Array.from(new Set(data.map(p => p.category))).filter(Boolean)
+        setTrendingTags(unique.length > 0 ? unique : ["Luxury", "Streetwear", "Archive"])
+      }
+    }
+    fetchTrending()
+  }, [])
+
   const generateSuggestions = async (input: string) => {
-    if (!input.trim() || input.length < 2) {
-      setSearchSuggestions([])
+    const trimmed = input.trim()
+    if (!trimmed || trimmed.length < 1) {
+      setSearchSuggestions({ products: [], categories: [] })
       return
     }
 
-    const suggestions: any[] = []
-
-    // 1. Suggest Categories
-    const matchingCategories = categories.filter(c => 
-      c.toLowerCase() !== "all" && c.toLowerCase().includes(input.toLowerCase())
-    )
-    matchingCategories.forEach(c => suggestions.push({ text: c, type: 'category', icon: '🏷️' }))
-
-    // 2. Suggest Products
-    const { data: titles } = await supabase
+    // Query products — starts-with for speed & relevance
+    const { data: products } = await supabase
       .from("products")
-      .select("id, title")
+      .select("id, title, image_url")
       .eq("admin_status", "approved")
-      .ilike("title", `%${input}%`)
+      .ilike("title", `${trimmed}%`)
       .limit(5)
 
-    titles?.forEach(t => {
-        if (!suggestions.find(s => s.text === t.title)) {
-            suggestions.push({ text: t.title, type: 'product', icon: '👗', id: t.id })
-        }
-    })
+    // Query categories from local list (starts-with match)
+    const matchingCategories = categories
+      .filter(c => c.toLowerCase() !== "all" && c.toLowerCase().startsWith(trimmed.toLowerCase()))
+      .map(c => ({ id: c, name: c }))
 
-    // 3. Suggest Trending Tags
-    const matchingTags = trendingTags.filter(t => t.toLowerCase().includes(input.toLowerCase()))
-    matchingTags.forEach(t => {
-        if (!suggestions.find(s => s.text === t)) {
-            suggestions.push({ text: t, type: 'trending', icon: '🔥' })
-        }
+    setSearchSuggestions({
+      products: products ?? [],
+      categories: matchingCategories
     })
-
-    setSearchSuggestions(suggestions.slice(0, 8))
   }
-
-  const trendingTags = ["Co-ord Sets", "Korean", "Casual Dresses", "Trendy Tops"]
 
   // Removed full-screen loading skeleton to prevent UI fluctuation/flickering.
   // Instead, the skeletons render directly in the products grid.
@@ -341,50 +415,98 @@ export default function Home() {
               value={query}
               onChange={(e) => { 
                 const val = e.target.value;
-                setQuery(val); 
-                generateSuggestions(val); 
-                setShowSuggestions(val.trim().length > 0); 
+                setQuery(val);
+                if (val.trim().length >= 1) {
+                  setShowTrending(false);
+                  setShowSuggestions(true);
+                  // Proper debounce using ref
+                  if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+                  searchDebounceRef.current = setTimeout(() => generateSuggestions(val), 300);
+                } else {
+                  setSearchSuggestions({ products: [], categories: [] });
+                  setShowSuggestions(false);
+                  setShowTrending(false);
+                }
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   setShowSuggestions(false);
+                  setShowTrending(false);
                   searchProducts();
                 }
               }}
-              onFocus={(e) => {
-                if (e.target.value.trim().length > 0) {
-                  setShowSuggestions(true)
+              onFocus={() => {
+                if (query.trim().length >= 1) {
+                  setShowSuggestions(true);
+                } else {
+                  setShowTrending(true);
                 }
               }}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
+              onBlur={() => setTimeout(() => { setShowSuggestions(false); setShowTrending(false); }, 250)}
               className="w-full px-4 py-3 border border-gray-100 rounded-xl focus:ring-2 focus:ring-black outline-none text-sm font-medium"
             />
             <button onClick={searchProducts} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black text-white rounded-lg hover:bg-gray-800">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </button>
 
-            {showSuggestions && searchSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-xl mt-2 overflow-hidden z-50">
-                {searchSuggestions.map((s, i) => (
-                  <button 
-                    key={i} 
-                    onClick={() => { 
-                      if (s.type === 'product' && s.id) {
-                        router.push(`/product/${s.id}`)
-                      } else if (s.type === 'category') {
-                        setSelectedCategory(s.text);
-                        setQuery("");
-                        setShowSuggestions(false);
-                      } else {
-                        setQuery(s.text); 
-                        setShowSuggestions(false); 
-                        searchProducts(); 
-                      }
-                    }} 
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-50 last:border-0"
+            {/* Search Suggestions Dropdown */}
+            {showSuggestions && (searchSuggestions.products.length > 0 || searchSuggestions.categories.length > 0) && (
+              <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-2xl mt-2 overflow-hidden z-50">
+                {searchSuggestions.products.length > 0 && (
+                  <div>
+                    <div className="px-4 pt-3 pb-1">
+                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">Products</span>
+                    </div>
+                    {searchSuggestions.products.map((p: any) => (
+                      <button
+                        key={p.id}
+                        onClick={() => router.push(`/product/${p.id}`)}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                      >
+                        {p.image_url ? (
+                          <img src={p.image_url} alt={p.title} className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-gray-100" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-sm">👗</div>
+                        )}
+                        <span className="text-sm font-semibold text-gray-800 truncate">{p.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {searchSuggestions.categories.length > 0 && (
+                  <div className={searchSuggestions.products.length > 0 ? "border-t border-gray-50" : ""}>
+                    <div className="px-4 pt-3 pb-1">
+                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">Categories</span>
+                    </div>
+                    {searchSuggestions.categories.map((c: any) => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setSelectedCategory(c.name); setQuery(""); setShowSuggestions(false); }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                      >
+                        <span className="text-base">📂</span>
+                        <span className="text-sm font-semibold text-gray-700">{c.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Trending Searches — shown when input is empty and box is focused */}
+            {showTrending && !query.trim() && (
+              <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-2xl mt-2 overflow-hidden z-50">
+                <div className="px-4 pt-3 pb-1">
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">🔥 Trending Searches</span>
+                </div>
+                {trendingTags.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => { setQuery(tag); setShowTrending(false); setShowSuggestions(false); searchProducts(); }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 transition-colors"
                   >
-                    <span>{s.icon}</span>
-                    <div><div className="text-sm font-black">{s.text}</div><div className="text-[10px] text-gray-400 uppercase font-bold">{s.type}</div></div>
+                    <span className="text-base">🔍</span>
+                    <span className="text-sm font-medium text-gray-700">{tag}</span>
                   </button>
                 ))}
               </div>
@@ -400,8 +522,53 @@ export default function Home() {
           </div>
         </div>
       </header>
+      
+      {/* 🎬 God-Tier Luxury Hero Section */}
+      {selectedCategory === "ALL" && !query && viewMode === 'grid' && (
+      <section className="relative w-full h-[85vh] md:h-[90vh] bg-black overflow-hidden flex items-center justify-center -mt-[73px]">
+        {/* Cinematic Backdrop */}
+        <div className="absolute inset-0 opacity-60">
+            <Image 
+                src="https://images.unsplash.com/photo-1445205170230-053b83016050?q=80&w=2671&auto=format&fit=crop" 
+                alt="Luxury Fashion Campaign"
+                fill
+                priority
+                className="object-cover object-top scale-105 animate-slow-zoom"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+        </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Hero Content */}
+        <div className="relative z-10 text-center px-4 max-w-5xl mx-auto flex flex-col items-center mt-20">
+            <span className="text-[10px] md:text-xs text-white/70 uppercase tracking-[0.5em] font-bold mb-6 block animate-fade-in" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
+                The Institutional Archive
+            </span>
+            <h1 className="text-6xl md:text-8xl lg:text-[10rem] font-black uppercase text-white tracking-tighter italic leading-[0.8] mb-8 animate-slide-up mix-blend-overlay">
+                HSTNLX
+            </h1>
+            <p className="max-w-md mx-auto text-xs md:text-sm text-white/60 uppercase tracking-widest leading-relaxed mb-12 animate-fade-in" style={{ animationDelay: '400ms', animationFillMode: 'both' }}>
+                Curated peer-to-peer acquisition network for high-fidelity garments and exclusive silhouettes.
+            </p>
+            <button 
+                onClick={() => {
+                  document.getElementById('archive-grid')?.scrollIntoView({ behavior: 'smooth' })
+                }}
+                className="luxury-button !bg-white !text-black hover:!bg-black hover:!text-white hover:border hover:border-white transition-all duration-500 !px-12 !py-5 shadow-[0_0_40px_rgba(255,255,255,0.3)] animate-fade-in"
+                style={{ animationDelay: '600ms', animationFillMode: 'both' }}
+            >
+                Initialize Scouting
+            </button>
+        </div>
+        
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-white/50 flex flex-col items-center animate-bounce duration-1000">
+            <span className="text-[8px] uppercase tracking-widest font-black mb-2">Descend</span>
+            <div className="w-px h-8 bg-gradient-to-b from-white/50 to-transparent" />
+        </div>
+      </section>
+      )}
+
+      <main id="archive-grid" className="max-w-7xl mx-auto px-4 py-8 relative z-20 bg-white">
         
         {/* Horizontal Category Pills for easy access (Mobile & Desktop) */}
         <div className="flex overflow-x-auto gap-3 pb-6 mb-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">

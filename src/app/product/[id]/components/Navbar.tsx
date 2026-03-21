@@ -32,7 +32,7 @@ export default function Navbar() {
   const handleCategoryClick = (category: string) => {
     setIsMobileMenuOpen(false)
     if (pathname === "/") {
-      window.dispatchEvent(new CustomEvent('hstn-category', { detail: category }))
+      window.dispatchEvent(new CustomEvent('hstnlx-category', { detail: category }))
       window.scrollTo({ top: 0, behavior: "smooth" })
     } else {
       router.push(`/?category=${encodeURIComponent(category)}`)
@@ -114,36 +114,47 @@ export default function Navbar() {
   const [cartCount, setCartCount] = useState(0)
 
   useEffect(() => {
-    const init = async () => {
-      const { data: { user: u } } = await supabase.auth.getUser()
-      setUser(u ?? null)
-      setLoading(false)
-      updateCartCount()
-      if (u) {
-        await fetchWishlistCount()
-      }
-    }
-    init()
-
     const updateCartCount = () => {
-      const cart = JSON.parse(localStorage.getItem("hstn-cart") || "[]")
-      setCartCount(cart.reduce((acc: number, item: any) => acc + (item.quantity || 1), 0))
+      const cart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
+      setCartCount(cart.reduce((acc: number, item: any) => acc + (item.qty || 1), 0))
     }
 
-    window.addEventListener("storage", updateCartCount)
-    window.addEventListener("hstn-cart-updated", updateCartCount)
+    // 1. Initial Cart Count
+    updateCartCount()
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    // 2. Event Listeners
+    window.addEventListener("storage", updateCartCount)
+    window.addEventListener("hstnlx-cart-updated", updateCartCount)
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
+
+    // 4. Initial Auth Check
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      setUser(u ?? null)
+      setLoading(false)
+    })
+
     return () => {
       subscription.unsubscribe()
       window.removeEventListener("storage", updateCartCount)
-      window.removeEventListener("hstn-cart-updated", updateCartCount)
+      window.removeEventListener("hstnlx-cart-updated", updateCartCount)
     }
   }, [])
+
+  // 5. Reactive Wishlist Fetch & Listeners
+  useEffect(() => {
+    if (user) {
+      fetchWishlistCount()
+    } else {
+      setWishlistCount(0)
+    }
+
+    const handler = () => fetchWishlistCount()
+    window.addEventListener("hstnlx-wishlist-updated", handler)
+    return () => window.removeEventListener("hstnlx-wishlist-updated", handler)
+  }, [user])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -156,7 +167,7 @@ export default function Navbar() {
       <header className="w-full border-b bg-background">
         <div className="max-w-7xl mx-auto flex items-center justify-between p-4">
           <Link href="/" className="text-h3 font-bold tracking-tight text-foreground">
-            HSTN <span className="text-primary">LUXURY</span>
+            HSTNLX <span className="text-primary">LUXURY</span>
           </Link>
           <div className="w-32 h-8 bg-muted/10 animate-pulse rounded-full" />
         </div>
@@ -179,7 +190,7 @@ export default function Navbar() {
             {isMobileMenuOpen ? "✕" : "☰"}
           </button>
           <Link href="/" className="text-xl font-bold text-foreground hover:opacity-80 transition-smooth">
-            HSTN
+            HSTNLX
           </Link>
           {/* Desktop NavLinks moved to top row next to logo */}
           <div className="hidden lg:flex items-center gap-8 ml-8">

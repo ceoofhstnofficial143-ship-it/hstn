@@ -1,5 +1,37 @@
 import { supabase } from './supabase'
 
+// Google Analytics event tracking
+export const trackGAEvent = (eventName: string, params: Record<string, any> = {}) => {
+    if (typeof window !== 'undefined' && (window as any).gtag) {
+        (window as any).gtag('event', eventName, params)
+    }
+}
+
+// Universal Event Tracking - Core Monitoring Engine
+export const trackEvent = async (eventType: string, metadata: Record<string, any> = {}) => {
+    // Always log in development for debugging
+    if (typeof window !== 'undefined') {
+        console.log('📊 EVENT:', eventType, metadata)
+    }
+    
+    try {
+        const { data: { user } } = await supabase.auth.getUser()
+
+        const { error } = await supabase.from('marketplace_events').insert({
+            event_type: eventType,
+            user_id: user?.id || null,
+            metadata: metadata,
+            created_at: new Date().toISOString()
+        })
+        
+        if (error) {
+            console.error('❌ Tracking DB error:', error)
+        }
+    } catch (err) {
+        console.error('❌ Tracking failed:', err)
+    }
+}
+
 // Event logging utility for Marketplace Intelligence Layer
 export class Analytics {
     static async logProductView(userId: string, productId: string, sellerId: string) {

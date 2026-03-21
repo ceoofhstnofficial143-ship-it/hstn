@@ -31,13 +31,40 @@ export default function WishlistPage() {
             return
         }
 
-        const [wishlistRes, collectionsRes] = await Promise.all([
-            supabase.from("wishlist").select("*, products(*)").eq("user_id", session.user.id),
-            supabase.from("wishlist_collections").select("*").eq("user_id", session.user.id)
-        ])
+        // Step 1: fetch wishlist rows
+        const { data: wishlistRows, error: wishlistErr } = await supabase
+            .from("wishlist")
+            .select("id, product_id, collection_id, created_at")
+            .eq("user_id", session.user.id)
 
-        if (wishlistRes.data) setItems(wishlistRes.data)
-        if (collectionsRes.data) setCollections(collectionsRes.data)
+        if (wishlistErr || !wishlistRows || wishlistRows.length === 0) {
+            setLoading(false)
+            setItems([])
+            return
+        }
+
+        // Step 2: fetch the actual product details
+        const productIds = wishlistRows.map((r: any) => r.product_id).filter(Boolean)
+        const { data: productRows } = await supabase
+            .from("products")
+            .select("id, title, price, image_url, category")
+            .in("id", productIds)
+
+        // Step 3: merge — attach products onto wishlist rows
+        const merged = wishlistRows.map((row: any) => ({
+            ...row,
+            products: productRows?.find((p: any) => p.id === row.product_id) ?? null
+        }))
+
+        setItems(merged)
+
+        // Fetch collections separately
+        const { data: collectionsRes } = await supabase
+            .from("wishlist_collections")
+            .select("*")
+            .eq("user_id", session.user.id)
+
+        if (collectionsRes) setCollections(collectionsRes)
 
         setLoading(false)
     }
@@ -92,7 +119,10 @@ export default function WishlistPage() {
 
     const removeItem = async (id: string) => {
         const { error } = await supabase.from("wishlist").delete().eq("id", id)
-        if (!error) setItems(items.filter(item => item.id !== id))
+        if (!error) {
+            setItems(items.filter(item => item.id !== id))
+            window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
+        }
     }
 
     if (loading) return (
@@ -157,7 +187,7 @@ export default function WishlistPage() {
                                 return (
                                     <div key={item.id} className="group flex flex-col h-full bg-white rounded-[2rem] overflow-hidden border border-border hover:shadow-2xl transition-all duration-700 hover:-translate-y-2">
                                         <div className="relative aspect-[3/4] overflow-hidden">
-                                            <Link href={`/products/${product.id}`} className="absolute inset-0 z-10" />
+                                            <Link href={`/product/${product.id}`} className="absolute inset-0 z-10" />
                                             <Image src={product.image_url || 'https://images.unsplash.com/photo-1594932224010-74f43a02476b?q=80&w=2000'} alt={product.title} fill className="object-cover group-hover:scale-110 transition-transform duration-700" sizes="33vw" />
                                             <button onClick={() => removeItem(item.id)} className="absolute top-6 right-6 z-20 w-12 h-12 bg-white/90 backdrop-blur-xl rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">✕</button>
                                         </div>
@@ -175,7 +205,7 @@ export default function WishlistPage() {
                                                 >
                                                     {item.collection_id ? "Change Board" : "+ Add to Board"}
                                                 </button>
-                                                <button onClick={() => router.push(`/products/${product.id}`)} className="luxury-button !py-4 !text-[10px] uppercase tracking-widest font-bold">Initialize Acquisition</button>
+                                                <button onClick={() => router.push(`/product/${product.id}`)} className="luxury-button !py-4 !text-[10px] uppercase tracking-widest font-bold">Initialize Acquisition</button>
                                             </div>
                                         </div>
                                     </div>

@@ -29,7 +29,7 @@ export default function OrdersPage() {
                         products (*)
                     )
                 `)
-                .eq("user_id", user.id)
+                .eq("buyer_id", user.id)
                 .order("created_at", { ascending: false })
 
             if (!error && data) {
@@ -137,28 +137,62 @@ export default function OrdersPage() {
                                 orders.map((order) => (
                                     <div key={order.id} className="luxury-card overflow-hidden bg-white shadow-xl mb-10 border border-border group animate-fade-in">
                                         {/* Order Header */}
-                                        <div className="p-6 bg-accent/5 border-b border-border flex flex-wrap items-center justify-between gap-6">
-                                            <div className="space-y-1">
-                                                <p className="text-[9px] uppercase tracking-[0.3em] text-muted font-black">Transaction ID</p>
-                                                <p className="text-xs font-mono font-bold">#{order.id.split('-')[0].toUpperCase()}</p>
+                                        <div className="p-6 bg-accent/5 border-b border-border">
+                                            <div className="flex flex-wrap items-center justify-between gap-6 mb-8">
+                                                <div className="space-y-1">
+                                                    <p className="text-[9px] uppercase tracking-[0.3em] text-muted font-black">Transaction ID</p>
+                                                    <p className="text-xs font-mono font-bold">#{order.id.split('-')[0].toUpperCase()}</p>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-[9px] uppercase tracking-[0.3em] text-muted font-black">Date of Record</p>
+                                                    <p className="text-xs font-bold">{new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}</p>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-[9px] uppercase tracking-[0.3em] text-muted font-black">Valuation</p>
+                                                    <p className="text-xs font-black text-primary">₹ {order.total_price?.toLocaleString()}</p>
+                                                </div>
+                                                <div className="space-y-1 text-right">
+                                                    <p className="text-[9px] uppercase tracking-[0.3em] text-muted font-black mb-1">State</p>
+                                                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border shadow-sm ${
+                                                        order.status === 'delivered' ? 'bg-green-500 text-white border-green-600' :
+                                                        order.status === 'shipped' ? 'bg-blue-500 text-white border-blue-600' :
+                                                        'bg-black text-white border-black'
+                                                    }`}>
+                                                        {order.status || 'Pending'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[9px] uppercase tracking-[0.3em] text-muted font-black">Date of Record</p>
-                                                <p className="text-xs font-bold">{new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[9px] uppercase tracking-[0.3em] text-muted font-black">Valuation</p>
-                                                <p className="text-xs font-black text-primary">₹ {order.total_price?.toLocaleString()}</p>
-                                            </div>
-                                            <div className="space-y-1 text-right">
-                                                <p className="text-[9px] uppercase tracking-[0.3em] text-muted font-black mb-1">State</p>
-                                                <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border ${
-                                                    order.status === 'delivered' ? 'bg-green-500 text-white border-green-600' :
-                                                    order.status === 'shipped' ? 'bg-blue-500 text-white' :
-                                                    'bg-black text-white border-black'
-                                                }`}>
-                                                    {order.status || 'Pending'}
-                                                </span>
+
+                                            {/* Protocol Timeline */}
+                                            <div className="relative pt-4 pb-2 px-4">
+                                                <div className="absolute top-1/2 left-0 w-full h-[1px] bg-border -translate-y-1/2" />
+                                                <div className="relative flex justify-between items-center z-10">
+                                                    {[
+                                                        { id: 'confirmed', icon: '📝' },
+                                                        { id: 'packed', icon: '📦' },
+                                                        { id: 'shipped', icon: '🚀' },
+                                                        { id: 'delivered', icon: '🏁' }
+                                                    ].map((step, idx, arr) => {
+                                                        const stages = ['pending', 'confirmed', 'packed', 'shipped', 'delivered']
+                                                        const currentIdx = stages.indexOf(order.status || 'pending')
+                                                        const stepIdx = stages.indexOf(step.id)
+                                                        const isPast = currentIdx >= stepIdx
+                                                        const isCurrent = currentIdx === stepIdx
+
+                                                        return (
+                                                            <div key={step.id} className="flex flex-col items-center">
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] border-2 transition-all duration-700 ${
+                                                                    isPast ? 'bg-black border-black shadow-[0_0_15px_rgba(0,0,0,0.1)]' : 'bg-white border-border text-muted opacity-30'
+                                                                } ${isCurrent ? 'scale-125 ring-4 ring-primary/20' : ''}`}>
+                                                                    {isPast ? step.icon : '•'}
+                                                                </div>
+                                                                <span className={`text-[7px] uppercase tracking-[0.2em] font-black mt-3 transition-colors ${isPast ? 'text-foreground' : 'text-muted opacity-40'}`}>
+                                                                    {step.id}
+                                                                </span>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
 
@@ -195,7 +229,7 @@ export default function OrdersPage() {
                                                         {order.status === 'delivered' && (
                                                             <div className="flex items-center gap-4 pt-4 border-t border-border mt-4">
                                                                 <Link
-                                                                    href={`/products/${item.product_id}`}
+                                                                    href={`/product/${item.product_id}`}
                                                                     className="luxury-button !py-2 !px-6 !text-[9px] !bg-foreground !text-white"
                                                                 >
                                                                     Submit Review
@@ -208,13 +242,23 @@ export default function OrdersPage() {
                                         </div>
                                         
                                         {/* Order Footer Actions */}
-                                        {order.status !== 'delivered' && (
-                                            <div className="p-4 bg-accent/5 border-t border-border text-center">
-                                                <button className="text-[10px] font-black uppercase tracking-[0.3em] text-primary hover:opacity-70 transition-smooth">
+                                        <div className="p-4 bg-accent/5 border-t border-border flex justify-center gap-8 items-center overflow-x-auto whitespace-nowrap">
+                                            {order.status !== 'delivered' && (
+                                                <Link href={`/orders/${order.id}`} className="text-[10px] font-black uppercase tracking-[0.3em] text-primary hover:opacity-70 transition-smooth">
                                                     Access Tracking Protocol →
-                                                </button>
-                                            </div>
-                                        )}
+                                                </Link>
+                                            )}
+                                            {order.status === 'delivered' && !order.is_disputed && (
+                                                <Link href={`/orders/dispute/${order.id}`} className="text-[10px] font-black uppercase tracking-[0.3em] text-red-500 hover:opacity-70 transition-smooth border-l border-border pl-8">
+                                                    Protocol Conflict? Initialize Dispute →
+                                                </Link>
+                                            )}
+                                            {order.is_disputed && (
+                                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-red-500 border-l border-border pl-8 animate-pulse">
+                                                    Dispute Protocol Active ⚔️
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 ))
                             )}

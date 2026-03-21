@@ -11,7 +11,7 @@ export default function NotFound() {
       <h1 className="text-display text-4xl lg:text-6xl font-black italic uppercase tracking-tighter mb-6">Piece not found</h1>
       
       <p className="text-body text-muted max-w-md mb-12">
-        The asset you are looking for has either been decommissioned, acquired by another collector, or never existed in the HSTN records.
+        The asset you are looking for has either been decommissioned, acquired by another collector, or never existed in the HSTNLX records.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-4">

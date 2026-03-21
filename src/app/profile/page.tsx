@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 export default function ProfilePage() {
     const [user, setUser] = useState<any>(null)
     const [profile, setProfile] = useState<any>(null)
+    const [notifications, setNotifications] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const router = useRouter()
 
@@ -28,6 +29,17 @@ export default function ProfilePage() {
                 .single()
             
             setProfile(profileData)
+
+            // 🔔 FETCH NOTIFICATIONS
+            const { data: notifData } = await supabase
+                .from("notifications")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false })
+                .limit(5)
+            
+            if (notifData) setNotifications(notifData)
+
             setLoading(false)
         }
         fetchUserData()
@@ -99,6 +111,32 @@ export default function ProfilePage() {
                     <h2 className="text-h3 font-black uppercase tracking-[0.3em] mb-12 border-b border-border pb-6 italic">Identity Management</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                         <div className="lg:col-span-2 space-y-6">
+                            <h3 className="text-caption font-black uppercase tracking-[0.3em] mb-4 text-primary">Intelligence Stream</h3>
+                            {notifications.length === 0 ? (
+                                <div className="luxury-card p-12 text-center opacity-40 italic bg-accent/5">
+                                    No records found in message protocol.
+                                </div>
+                            ) : (
+                                notifications.map((notif: any) => (
+                                    <div key={notif.id} className={`luxury-card p-6 flex items-start gap-4 border-l-4 transition-all hover:bg-accent/10 ${
+                                        notif.is_read ? 'border-border' : 'border-primary bg-primary/5'
+                                    }`}>
+                                        <div className="flex-1">
+                                            <p className="text-xs font-black uppercase tracking-tight">{notif.message}</p>
+                                            <p className="text-[9px] uppercase tracking-widest text-muted mt-2">
+                                                {new Date(notif.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).toUpperCase()}
+                                            </p>
+                                        </div>
+                                        {!notif.is_read && (
+                                            <span className="w-1.5 h-1.5 bg-primary rounded-full" />
+                                        )}
+                                    </div>
+                                ))
+                            )}
+
+                            <div className="h-12" />
+
+                            <h3 className="text-caption font-black uppercase tracking-[0.3em] mb-4 text-muted">Identity Management</h3>
                             <div className="luxury-card p-8 flex items-center justify-between bg-accent/5">
                                 <div>
                                     <p className="text-[10px] uppercase tracking-widest text-muted mb-1">Authenticated Name</p>

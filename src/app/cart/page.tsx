@@ -15,7 +15,7 @@ export default function CartPage() {
   const getItemKey = (item: any) => `${item.productId}-${item.size}`
 
   useEffect(() => {
-    const items = JSON.parse(localStorage.getItem("hstn_cart") || "[]")
+    const items = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
     setCartItems(items)
     // Select all by default using the unique composite key
     setSelectedIds(items.map((i: any) => getItemKey(i)))
@@ -31,16 +31,16 @@ export default function CartPage() {
       return item
     })
     setCartItems(newCart)
-    localStorage.setItem("hstn_cart", JSON.stringify(newCart))
-    window.dispatchEvent(new Event("hstn-cart-updated"))
+    localStorage.setItem("hstnlx_cart", JSON.stringify(newCart))
+    window.dispatchEvent(new Event("hstnlx-cart-updated"))
   }
 
   const removeItem = (itemKey: string) => {
     const newCart = cartItems.filter(item => getItemKey(item) !== itemKey)
     setCartItems(newCart)
     setSelectedIds(prev => prev.filter(k => k !== itemKey))
-    localStorage.setItem("hstn_cart", JSON.stringify(newCart))
-    window.dispatchEvent(new Event("hstn-cart-updated"))
+    localStorage.setItem("hstnlx_cart", JSON.stringify(newCart))
+    window.dispatchEvent(new Event("hstnlx-cart-updated"))
   }
 
   const toggleSelect = (itemKey: string) => {
@@ -58,12 +58,12 @@ export default function CartPage() {
       return
     }
     // Deep copy and store for checkout
-    localStorage.setItem("hstn_checkout_items", JSON.stringify(selectedItems))
+    localStorage.setItem("hstnlx_checkout_items", JSON.stringify(selectedItems))
     router.push("/checkout")
   }
 
   const quickBuy = (item: any) => {
-    localStorage.setItem("hstn_checkout_items", JSON.stringify([{ ...item }]))
+    localStorage.setItem("hstnlx_checkout_items", JSON.stringify([{ ...item }]))
     router.push("/checkout")
   }
 
@@ -111,7 +111,7 @@ export default function CartPage() {
                         {isSelected && <span className="text-black text-[10px] font-bold">✓</span>}
                       </button>
 
-                      <div className="w-20 h-28 lg:w-24 lg:h-32 rounded-2xl overflow-hidden bg-accent/20 flex-shrink-0 relative group">
+                      <Link href={`/product/${item.productId}`} className="w-20 h-28 lg:w-24 lg:h-32 rounded-2xl overflow-hidden bg-accent/20 flex-shrink-0 relative group cursor-pointer">
                         <Image 
                           src={item.image || '/placeholder.jpg'} 
                           alt={item.title} 
@@ -122,13 +122,15 @@ export default function CartPage() {
                         <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[8px] px-2 py-1 rounded-md font-bold uppercase tracking-widest">
                            {item.size}
                         </div>
-                      </div>
+                      </Link>
                     </div>
 
                     <div className="flex-1 w-full">
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <h3 className="text-sm font-black uppercase tracking-tight line-clamp-1">{item.title}</h3>
+                          <Link href={`/product/${item.productId}`}>
+                            <h3 className="text-sm font-black uppercase tracking-tight line-clamp-1 hover:underline cursor-pointer">{item.title}</h3>
+                          </Link>
                           <div className="flex flex-wrap gap-2 lg:gap-3 mt-1">
                             <p className="text-[9px] text-primary uppercase tracking-widest font-black">Size: {item.size}</p>
                             <span className="text-[9px] text-gray-200">|</span>

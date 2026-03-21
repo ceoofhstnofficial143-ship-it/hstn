@@ -149,7 +149,7 @@ export default function SellerPage() {
                             <span className="text-8xl">🛡️</span>
                         </div>
                         <div className="text-center relative z-10">
-                            <p className="text-[9px] font-bold text-primary uppercase tracking-[0.4em] mb-4">HSTN Trust Index™</p>
+                            <p className="text-[9px] font-bold text-primary uppercase tracking-[0.4em] mb-4">HSTNLX Trust Index™</p>
                             <div className="flex items-end justify-center gap-2">
                                 <span className="text-6xl font-light tracking-tighter text-white leading-none">{displayScore}</span>
                                 <span className="text-xl text-white/30 pb-1">/ 100</span>

@@ -21,10 +21,15 @@ export default function AdminOrders() {
                 total_price,
                 status,
                 created_at,
-                user_id,
+                buyer_id,
                 seller_id,
-                profiles:user_id(username, email),
-                product:product_id(title, image_url)
+                buyer:profiles!orders_buyer_id_fkey(username, email),
+                order_items(
+                    quantity,
+                    price,
+                    selected_size,
+                    product:products(title, image_url)
+                )
             `)
             .order("created_at", { ascending: false })
 
@@ -80,26 +85,28 @@ export default function AdminOrders() {
                                 <td className="px-8 py-6">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden relative border border-slate-100">
-                                            {order.product?.image_url ? (
-                                                <Image src={order.product.image_url} alt="" fill className="object-cover" />
+                                            {order.order_items?.[0]?.product?.image_url ? (
+                                                <Image src={order.order_items[0].product.image_url} alt="" fill className="object-cover" />
                                             ) : (
                                                 <div className="w-full h-full bg-slate-200" />
                                             )}
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-black uppercase tracking-tight line-clamp-1 max-w-[150px]">{order.product?.title || 'Unknown Piece'}</p>
-                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Asset Requisition</p>
+                                            <p className="text-[10px] font-black uppercase tracking-tight line-clamp-1 max-w-[150px]">{order.order_items?.[0]?.product?.title || 'Unknown Piece'}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                                                {order.order_items?.length > 1 ? `+${order.order_items.length - 1} more` : 'Asset Requisition'}
+                                            </p>
                                         </div>
                                     </div>
                                 </td>
                                 <td className="px-8 py-6">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-[10px]">
-                                            {order.profiles?.username?.[0]?.toUpperCase() || 'U'}
+                                            {order.buyer?.username?.[0]?.toUpperCase() || 'U'}
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-black">@{order.profiles?.username || 'Unknown'}</p>
-                                            <p className="text-[9px] text-slate-400 font-bold ">{order.profiles?.email}</p>
+                                            <p className="text-[10px] font-black">@{order.buyer?.username || 'Unknown'}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold ">{order.buyer?.email}</p>
                                         </div>
                                     </div>
                                 </td>

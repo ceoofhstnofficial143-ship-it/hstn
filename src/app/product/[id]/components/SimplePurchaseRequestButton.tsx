@@ -13,7 +13,7 @@ interface SimplePurchaseRequestButtonProps {
 export default function SimplePurchaseRequestButton({ product, className = "" }: SimplePurchaseRequestButtonProps) {
     return (
         <Link 
-            href={`/products/${product.id}`}
+            href={`/product/${product.id}`}
             className={`block w-full h-11 min-h-[44px] bg-black text-white font-semibold rounded-lg transition-colors hover:bg-gray-800 active:scale-95 text-center leading-11 ${className}`}
         >
             View Product

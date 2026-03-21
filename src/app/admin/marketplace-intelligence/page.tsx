@@ -2,396 +2,126 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
-
-interface OrderWithProduct {
-    id: string;
-    product_id: string;
-    status: string;
-    products: { price: number } | null;
-}
-
-interface FunnelAnalytics {
-    date_bucket: string
-    feed_views: number
-    product_clicks: number
-    cart_adds: number
-    checkout_starts: number
-    checkout_completes: number
-    ctr: number
-    cart_rate: number
-    checkout_start_rate: number
-    completion_rate: number
-}
-
-interface GlobalMetrics {
-    total_sellers: number
-    total_products: number
-    total_orders: number
-    total_revenue: number
-    avg_trust_score: number
-    elite_sellers: number
-    gold_sellers: number
-    verified_sellers: number
-}
+import Link from "next/link"
 
 export default function MarketplaceIntelligence() {
-    const [funnelData, setFunnelData] = useState<FunnelAnalytics[]>([])
-    const [globalMetrics, setGlobalMetrics] = useState<GlobalMetrics | null>(null)
+    const [stats, setStats] = useState({ orders: 0, revenue: 0, events: 0, payouts: 0 })
+    const [events, setEvents] = useState<any[]>([])
+    const [orders, setOrders] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
-    const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d'>('7d')
 
     useEffect(() => {
-        fetchMarketplaceData()
-    }, [timeframe])
+        fetchAdminData()
+    }, [])
 
-    const fetchMarketplaceData = async () => {
+    const fetchAdminData = async () => {
         setLoading(true)
         
-        // Get funnel analytics
-        const daysAgo = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : 90
-        const { data: funnelData } = await supabase
-            .from('funnel_analytics')
-            .select('*')
-            .gte('date_bucket', new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-            .order('date_bucket', { ascending: false })
-            .limit(30)
+        // 1. Fetch Aggregates
+        const { count: ordersCount } = await supabase.from("orders").select("*", { count: 'exact', head: true })
+        const { count: eventsCount } = await supabase.from("system_events").select("*", { count: 'exact', head: true })
+        const { count: payoutsCount } = await supabase.from("seller_payouts").select("*", { count: 'exact', head: true })
+        
+        const { data: revData } = await supabase.from("orders").select("total_price")
+        const totalRevenue = revData?.reduce((acc, o) => acc + (o.total_price || 0), 0) || 0
 
-        // Calculate global metrics
-        const { data: sellersData } = await supabase
-            .from('profiles')
-            .select('id, role')
-            .eq('role', 'seller')
+        // 2. Fetch Recent Activities
+        const { data: recentEvents } = await supabase.from("system_events").select("*").order("created_at", { ascending: false }).limit(10)
+        const { data: recentOrders } = await supabase.from("orders").select("*, profiles!orders_seller_id_fkey(username)").order("created_at", { ascending: false }).limit(5)
 
-        const { data: productsData } = await supabase
-            .from('products')
-            .select('id, user_id, price')
-
-        const { data: ordersData } = await supabase
-            .from('orders')
-            .select(`
-                id,
-                product_id,
-                status,
-                products (price)
-            `) as { data: OrderWithProduct[] | null }
-
-        const { data: trustData } = await supabase
-            .from('trust_scores')
-            .select('score')
-
-        // Calculate metrics
-        const totalSellers = sellersData?.length || 0
-        const totalProducts = productsData?.length || 0
-        const totalOrders = ordersData?.filter(o => o.status === 'delivered').length || 0
-        const totalRevenue = ordersData?.reduce((acc: number, order: OrderWithProduct) => {
-            return acc + (order.products?.price || 0)
-        }, 0) || 0
-        const avgTrustScore = (trustData as any)?.reduce((acc: number, t: any) => acc + (t.score || 0), 0) / (trustData?.length || 1) || 0
-
-        const eliteSellers = trustData?.filter(t => t.score >= 150).length || 0
-        const goldSellers = trustData?.filter(t => t.score >= 100 && t.score < 150).length || 0
-        const verifiedSellers = trustData?.filter(t => t.score >= 50 && t.score < 100).length || 0
-
-        setGlobalMetrics({
-            total_sellers: totalSellers,
-            total_products: totalProducts,
-            total_orders: totalOrders,
-            total_revenue: totalRevenue,
-            avg_trust_score: Math.round(avgTrustScore),
-            elite_sellers: eliteSellers,
-            gold_sellers: goldSellers,
-            verified_sellers: verifiedSellers
-        })
-
-        setFunnelData(funnelData || [])
+        setStats({ orders: ordersCount || 0, revenue: totalRevenue, events: eventsCount || 0, payouts: payoutsCount || 0 })
+        if (recentEvents) setEvents(recentEvents)
+        if (recentOrders) setOrders(recentOrders)
+        
         setLoading(false)
     }
 
-    const refreshAnalytics = async () => {
-        await supabase.rpc('refresh_all_analytics')
-        await fetchMarketplaceData()
-    }
-
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-            </div>
-        )
-    }
+    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center p-20"><div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" /></div>
 
     return (
-        <main className="bg-background min-h-screen animate-fade-in py-20">
+        <main className="min-h-screen bg-black text-white py-20 pb-40">
             <div className="section-container">
-                <header className="mb-12 flex justify-between items-start">
+                <header className="mb-20 flex flex-col md:flex-row justify-between items-end gap-10">
                     <div>
-                        <span className="text-caption uppercase tracking-widest text-primary font-bold">Admin Console</span>
-                        <h1 className="text-display mt-2 italic">Marketplace Intelligence</h1>
+                        <span className="text-caption uppercase tracking-[0.4em] text-primary font-bold">Institutional Control</span>
+                        <h1 className="text-display mt-2 italic uppercase">Commercial Intelligence</h1>
                     </div>
                     <div className="flex gap-4">
-                        <div className="flex gap-2">
-                            {(['7d', '30d', '90d'] as const).map((period) => (
-                                <button
-                                    key={period}
-                                    onClick={() => setTimeframe(period)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                                        timeframe === period
-                                            ? 'bg-primary text-white'
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    {period === '7d' ? '7 Days' : period === '30d' ? '30 Days' : '90 Days'}
-                                </button>
-                            ))}
-                        </div>
-                        <button
-                            onClick={refreshAnalytics}
-                            className="luxury-button !text-xs !py-3 !px-6"
-                        >
-                            Refresh Data
-                        </button>
+                        <Link href="/admin/reconciliation" className="luxury-button !py-4 !px-8 !bg-white/5 !text-white border-white/10">Truth Desk</Link>
+                        <button onClick={fetchAdminData} className="luxury-button !py-4 !px-8 !bg-primary !text-black">Sync Ledger</button>
                     </div>
                 </header>
 
-                {/* Global Metrics */}
-                {globalMetrics && (
-                    <div className="mb-12">
-                        <h2 className="text-h3 font-bold mb-6 uppercase tracking-widest">Global Marketplace Health</h2>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 text-center">
-                                <div className="text-3xl font-black text-primary">
-                                    {globalMetrics.total_sellers}
-                                </div>
-                                <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                    Total Sellers
-                                </div>
-                            </div>
-                            
-                            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 text-center">
-                                <div className="text-3xl font-black text-green-600">
-                                    {globalMetrics.total_products}
-                                </div>
-                                <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                    Active Products
-                                </div>
-                            </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-20">
+                    <div className="luxury-card p-10 bg-white/5 border-none">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Gross Liquidity</p>
+                        <p className="text-5xl font-black italic tracking-tighter">₹{stats.revenue.toLocaleString()}</p>
+                    </div>
+                    <div className="luxury-card p-10 bg-white/5 border-none">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Total Commands</p>
+                        <p className="text-5xl font-black italic tracking-tighter">{stats.orders}</p>
+                    </div>
+                    <div className="luxury-card p-10 bg-white/5 border-none">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">Payout Liabilities</p>
+                        <p className="text-5xl font-black italic tracking-tighter">{stats.payouts}</p>
+                    </div>
+                    <div className="luxury-card p-10 bg-white/5 border-none">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3">System Signals</p>
+                        <p className="text-5xl font-black italic tracking-tighter">{stats.events}</p>
+                    </div>
+                </div>
 
-                            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 text-center">
-                                <div className="text-3xl font-black text-blue-600">
-                                    {globalMetrics.total_orders}
-                                </div>
-                                <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                    Completed Orders
-                                </div>
-                            </div>
-
-                            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 text-center">
-                                <div className="text-3xl font-black text-purple-600">
-                                    ₹{globalMetrics.total_revenue.toLocaleString()}
-                                </div>
-                                <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                    Total Revenue
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Trust Tier Distribution */}
-                        <div className="mt-8 bg-gradient-to-r from-primary/10 to-purple-10 rounded-2xl p-8">
-                            <h3 className="text-h3 font-bold mb-6">Trust Tier Distribution</h3>
-                            <div className="grid md:grid-cols-4 gap-6">
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-gray-600">
-                                        {globalMetrics.total_sellers - globalMetrics.verified_sellers - globalMetrics.gold_sellers - globalMetrics.elite_sellers}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        Unverified
-                                    </div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-green-600">
-                                        {globalMetrics.verified_sellers}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        🟢 Verified
-                                    </div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-yellow-600">
-                                        {globalMetrics.gold_sellers}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        🟡 Gold
-                                    </div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-blue-600">
-                                        {globalMetrics.elite_sellers}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        🔵 Elite
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="mt-6 text-center">
-                                <div className="text-lg font-black text-primary">
-                                    {globalMetrics.avg_trust_score}
-                                </div>
-                                <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                    Average Trust Score
-                                </div>
-                            </div>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                    {/* ORDER FLOW */}
+                    <div className="lg:col-span-12">
+                        <h2 className="text-xl font-black italic uppercase tracking-tighter mb-8">Recent Acquisition Flux</h2>
+                        <div className="luxury-card overflow-hidden bg-white/5 border-none rounded-[2.5rem]">
+                            <table className="w-full text-left">
+                                <thead className="bg-white/5 uppercase text-[9px] font-black tracking-widest text-white/40">
+                                    <tr>
+                                        <th className="px-8 py-6">ID</th>
+                                        <th className="px-8 py-6">Vendor</th>
+                                        <th className="px-8 py-6">Status</th>
+                                        <th className="px-8 py-6 text-right">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {orders.map(o => (
+                                        <tr key={o.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                            <td className="px-8 py-6 font-mono text-xs">{o.id.slice(0,8)}...</td>
+                                            <td className="px-8 py-6 text-[10px] font-bold">@{o.profiles?.username || 'vendor'}</td>
+                                            <td className="px-8 py-6">
+                                                <span className="bg-primary/10 text-primary text-[8px] font-black uppercase px-2 py-1 rounded">{o.status}</span>
+                                            </td>
+                                            <td className="px-8 py-6 text-right font-black italic">₹{o.total_price.toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                )}
 
-                {/* Funnel Analytics */}
-                {funnelData.length > 0 && (
-                    <div>
-                        <h2 className="text-h3 font-bold mb-6 uppercase tracking-widest">Conversion Funnel</h2>
-                        <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-8">
-                            <div className="grid md:grid-cols-5 gap-6 mb-8">
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-primary">
-                                        {funnelData.reduce((acc, f) => acc + f.feed_views, 0).toLocaleString()}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        Feed Views
-                                    </div>
-                                </div>
-                                
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-blue-600">
-                                        {funnelData.reduce((acc, f) => acc + f.product_clicks, 0).toLocaleString()}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        Product Clicks
-                                    </div>
-                                </div>
-
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-orange-600">
-                                        {funnelData.reduce((acc, f) => acc + f.cart_adds, 0).toLocaleString()}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        Cart Adds
-                                    </div>
-                                </div>
-
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-purple-600">
-                                        {funnelData.reduce((acc, f) => acc + f.checkout_starts, 0).toLocaleString()}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        Checkout Starts
-                                    </div>
-                                </div>
-
-                                <div className="text-center">
-                                    <div className="text-2xl font-black text-green-600">
-                                        {funnelData.reduce((acc, f) => acc + f.checkout_completes, 0).toLocaleString()}
-                                    </div>
-                                    <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                        Orders
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Conversion Rates */}
-                            <div className="border-t border-gray-200 pt-6">
-                                <h3 className="text-sm font-bold uppercase tracking-widest mb-4">Average Conversion Rates</h3>
-                                <div className="grid md:grid-cols-4 gap-6">
-                                    <div className="text-center">
-                                        <div className="text-xl font-black text-blue-600">
-                                            {(funnelData.reduce((acc, f) => acc + f.ctr, 0) / funnelData.length).toFixed(1)}%
-                                        </div>
-                                        <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                            Click-Through Rate
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="text-center">
-                                        <div className="text-xl font-black text-orange-600">
-                                            {(funnelData.reduce((acc, f) => acc + f.cart_rate, 0) / funnelData.length).toFixed(1)}%
-                                        </div>
-                                        <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                            Cart Rate
-                                        </div>
-                                    </div>
-
-                                    <div className="text-center">
-                                        <div className="text-xl font-black text-purple-600">
-                                            {(funnelData.reduce((acc, f) => acc + f.checkout_start_rate, 0) / funnelData.length).toFixed(1)}%
-                                        </div>
-                                        <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                            Checkout Start Rate
-                                        </div>
-                                    </div>
-
-                                    <div className="text-center">
-                                        <div className="text-xl font-black text-green-600">
-                                            {(funnelData.reduce((acc, f) => acc + f.completion_rate, 0) / funnelData.length).toFixed(1)}%
-                                        </div>
-                                        <div className="text-xs uppercase tracking-widest text-gray-600 font-bold mt-1">
-                                            Completion Rate
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Recent Daily Performance */}
-                {funnelData.length > 0 && (
-                    <div className="mt-12">
-                        <h2 className="text-h3 font-bold mb-6 uppercase tracking-widest">Recent Daily Performance</h2>
-                        <div className="space-y-4">
-                            {funnelData.slice(0, 7).map((day, index) => (
-                                <div key={day.date_bucket} className="bg-white/50 backdrop-blur-sm rounded-xl p-6">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <div className="font-bold text-sm">
-                                            {new Date(day.date_bucket).toLocaleDateString('en-US', { 
-                                                weekday: 'short', 
-                                                month: 'short', 
-                                                day: 'numeric' 
-                                            })}
-                                        </div>
-                                        <div className="flex gap-4 text-xs">
-                                            <span className="font-bold text-blue-600">
-                                                CTR: {day.ctr.toFixed(1)}%
-                                            </span>
-                                            <span className="font-bold text-green-600">
-                                                Completion: {day.completion_rate.toFixed(1)}%
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-5 gap-4 text-center text-xs">
+                    {/* EVENT LOG */}
+                    <div className="lg:col-span-12">
+                        <h2 className="text-xl font-black italic uppercase tracking-tighter mb-8">System Signals (Black Box)</h2>
+                        <div className="luxury-card p-8 bg-white/5 border-none rounded-[2.5rem] space-y-4">
+                            {events.map(e => (
+                                <div key={e.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-primary/20 transition-all">
+                                    <div className="flex items-center gap-6">
+                                        <div className={`w-2 h-2 rounded-full ${e.status === 'success' ? 'bg-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'}`} />
                                         <div>
-                                            <div className="font-black text-primary">{day.feed_views}</div>
-                                            <div className="text-gray-600">Views</div>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-white/80">{e.event_type}</p>
+                                            <p className="text-[9px] text-white/30 uppercase tracking-widest mt-1">Source: {e.source} | Ref: {e.reference_id}</p>
                                         </div>
-                                        <div>
-                                            <div className="font-black text-blue-600">{day.product_clicks}</div>
-                                            <div className="text-gray-600">Clicks</div>
-                                        </div>
-                                        <div>
-                                            <div className="font-black text-orange-600">{day.cart_adds}</div>
-                                            <div className="text-gray-600">Cart</div>
-                                        </div>
-                                        <div>
-                                            <div className="font-black text-purple-600">{day.checkout_starts}</div>
-                                            <div className="text-gray-600">Checkout</div>
-                                        </div>
-                                        <div>
-                                            <div className="font-black text-green-600">{day.checkout_completes}</div>
-                                            <div className="text-gray-600">Orders</div>
-                                        </div>
+                                    </div>
+                                    <div className="mt-4 sm:mt-0 text-right">
+                                        <p className="text-[9px] text-white/20 font-mono italic">{new Date(e.created_at).toLocaleString()}</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
-                )}
+                </div>
             </div>
         </main>
     )

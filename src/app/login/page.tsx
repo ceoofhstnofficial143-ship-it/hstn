@@ -42,7 +42,7 @@ export default function LoginPage() {
       <div className="luxury-card max-w-md w-full p-8 sm:p-12 space-y-10 sm:space-y-12">
         <header className="text-center">
           <Link href="/" className="text-h3 font-black tracking-tight text-foreground hover:opacity-80 transition-smooth uppercase">
-            HSTN <span className="text-primary font-black italic">Archive</span>
+            HSTNLX <span className="text-primary font-black italic">Archive</span>
           </Link>
           <h1 className="text-h2 mt-8 mb-4 uppercase tracking-tighter italic">Security Gateway</h1>
           <p className="text-[10px] uppercase tracking-[0.3em] font-black text-muted">Access your exclusive collection</p>

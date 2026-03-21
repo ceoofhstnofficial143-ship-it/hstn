@@ -5,6 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { supabase } from "@/lib/supabase"
 import { Analytics } from "@/lib/analytics"
+import { trackEvent } from "@/lib/analytics"
 
 interface ProductCardProps {
     product: any
@@ -12,6 +13,75 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, fullScreen = false }: ProductCardProps) {
+    const [isWishlisted, setIsWishlisted] = React.useState(false)
+    const [loadingWishlist, setLoadingWishlist] = React.useState(false)
+
+    React.useEffect(() => {
+        const checkWishlistStatus = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { data } = await supabase
+                .from("wishlist")
+                .select("id")
+                .eq("user_id", user.id)
+                .eq("product_id", product.id)
+                .maybeSingle()
+
+            setIsWishlisted(!!data)
+        }
+        checkWishlistStatus()
+
+        const handler = () => checkWishlistStatus()
+        window.addEventListener("hstnlx-wishlist-updated", handler)
+        return () => window.removeEventListener("hstnlx-wishlist-updated", handler)
+    }, [product.id])
+
+    const toggleWishlist = async (e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            alert("Authentication Required: Please sign in to secure assets in your vault.")
+            return
+        }
+
+        setLoadingWishlist(true)
+        try {
+            if (isWishlisted) {
+                const { error } = await supabase
+                    .from("wishlist")
+                    .delete()
+                    .eq("user_id", user.id)
+                    .eq("product_id", product.id)
+
+                if (!error) {
+                    setIsWishlisted(false)
+                    trackEvent('wishlist_remove', { product_id: product.id, seller_id: product.user_id })
+                    window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
+                }
+            } else {
+                const { error } = await supabase
+                    .from("wishlist")
+                    .insert([{ user_id: user.id, product_id: product.id }])
+
+                if (!error) {
+                    setIsWishlisted(true)
+                    Analytics.logWishlistAdd(user.id, product.id, product.user_id)
+                    trackEvent('wishlist_add', { product_id: product.id, seller_id: product.user_id })
+                    window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
+                } else if (error.code === '23505') {
+                    setIsWishlisted(true)
+                }
+            }
+        } catch (err) {
+            console.error("Wishlist toggle error:", err)
+        } finally {
+            setLoadingWishlist(false)
+        }
+    }
+
     const updateProductViews = async (productId: string) => {
         await supabase
             .from("products")
@@ -20,7 +90,13 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
     }
 
     const handleProductClick = () => {
+        console.log('🖱️ Product clicked:', product.id)
         updateProductViews(product.id)
+        trackEvent('product_view', { 
+            product_id: product.id, 
+            seller_id: product.user_id,
+            category: product.category 
+        })
     }
 
     // FullScreen mode for DiscoveryFeed
@@ -59,6 +135,18 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                 <div className="absolute bottom-4 right-4 text-xs text-white opacity-70">
                     Swipe ↑
                 </div>
+                
+                {/* Discovery Feed Heart Toggle */}
+                <div className="absolute top-6 right-6 z-20">
+                    <button
+                        onClick={toggleWishlist}
+                        disabled={loadingWishlist}
+                        className={`w-12 h-12 rounded-full backdrop-blur-md flex items-center justify-center transition-all duration-300 ${isWishlisted ? 'bg-red-500 text-white shadow-xl' : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'}`}
+                    >
+                        <span className="text-xl">{isWishlisted ? "❤️" : "🤍"}</span>
+                    </button>
+                </div>
+
                 <Link href={`/product/${product.id}`} className="absolute inset-0" />
             </div>
         )
@@ -67,7 +155,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
     const [showSizes, setShowSizes] = React.useState(false);
 
     const addToCart = (size: string) => {
-        const cart = JSON.parse(localStorage.getItem("hstn_cart") || "[]")
+        const cart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
         const newItem = {
             productId: product.id,
             title: product.title,
@@ -85,8 +173,17 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
             cart.push(newItem)
         }
         
-        localStorage.setItem("hstn_cart", JSON.stringify(cart))
-        window.dispatchEvent(new Event("hstn-cart-updated"))
+        localStorage.setItem("hstnlx_cart", JSON.stringify(cart))
+        window.dispatchEvent(new Event("hstnlx-cart-updated"))
+        
+        // Track event
+        trackEvent('add_to_cart', { 
+            product_id: product.id, 
+            seller_id: product.user_id,
+            size: size,
+            price: product.price 
+        })
+        
         setShowSizes(false)
         alert(`Success: ${product.title} (Size ${size}) added to your vault.`)
     }
@@ -147,33 +244,11 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                 {/* Quick Actions overlay on Image */}
                 <div className="absolute top-3 right-3 z-20 flex flex-col gap-2 transform translate-x-12 group-hover:translate-x-0 transition-transform duration-500 opacity-0 group-hover:opacity-100">
                     <button
-                        onClick={async (e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            const { data: { user } } = await supabase.auth.getUser()
-                            if (!user) {
-                                alert("Authentication Required: Please sign in to secure assets in your vault.")
-                                return
-                            }
-                            try {
-                                const { error } = await supabase
-                                    .from("wishlist")
-                                    .insert([{ user_id: user.id, product_id: product.id }])
-
-                                if (error) {
-                                    if (error.code === '23505') alert("Asset already secured in vault.")
-                                    else throw error
-                                } else {
-                                    Analytics.logWishlistAdd(user.id, product.id, product.user_id)
-                                    alert(`Vault Entry: ${product.title} secured ♥`)
-                                }
-                            } catch (err) {
-                                console.error("Wishlist Protocol Error:", err)
-                            }
-                        }}
-                        className="bg-white/95 backdrop-blur-md p-2.5 rounded-full shadow-2xl hover:bg-black hover:text-white transition-all duration-300 transform hover:scale-110"
+                        onClick={toggleWishlist}
+                        disabled={loadingWishlist}
+                        className={`backdrop-blur-md p-2.5 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-110 ${isWishlisted ? 'bg-red-500 text-white' : 'bg-white/95 text-gray-400 hover:bg-black hover:text-white'}`}
                     >
-                        <span className="text-sm">❤️</span>
+                        <span className="text-sm">{isWishlisted ? "❤️" : "🤍"}</span>
                     </button>
                     <Link
                         href={`/product/${product.id}`}

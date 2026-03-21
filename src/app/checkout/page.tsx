@@ -7,16 +7,38 @@ import Image from "next/image"
 import { getTrustTier } from "@/lib/trustTier"
 import { supabase } from "@/lib/supabase"
 import { Analytics } from "@/lib/analytics"
+import { LogisticsProtocol } from "@/lib/logistics"
 
 export default function CheckoutPage() {
   const router = useRouter()
+  
+  // 🛡️ PRODUCTION SAFETY LOCK (MOCK MODE VERIFICATION)
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_PAYMENT_MODE === "mock") {
+      console.warn("⚠️ HSTNLX SECURITY: Running in MOCK payment protocol. Live financial transactions are inactive.");
+    }
+  }, []);
+
   const [cartItems, setCartItems] = useState<any[]>([])
   const [paymentMethod, setPaymentMethod] = useState("card")
   const [loading, setLoading] = useState(true)
+  const [processingStatus, setProcessingStatus] = useState<string | null>(null)
+  
+  // Shipping form state (controlled — no more querySelector)
+  const [shippingForm, setShippingForm] = useState({
+    fullName: "",
+    phone: "",
+    address: "",
+    city: "",
+    pincode: "",
+  })
+  const updateShipping = (field: string, value: string) =>
+    setShippingForm(prev => ({ ...prev, [field]: value }))
+  const [logistics, setLogistics] = useState<{ serviceable: boolean; estimatedDays: number | null; carrier: string } | null>(null)
 
   useEffect(() => {
     const fetchCartTrust = async () => {
-      const items = JSON.parse(localStorage.getItem("hstn_checkout_items") || "[]")
+      const items = JSON.parse(localStorage.getItem("hstnlx_checkout_items") || "[]")
       if (items.length === 0) {
         router.push("/cart")
         return
@@ -27,7 +49,7 @@ export default function CheckoutPage() {
           const { data: trust } = await supabase
             .from("trust_scores")
             .select("score, verified")
-            .eq("user_id", item.user_id)
+            .eq("user_id", item.seller_id)
             .single()
           return { ...item, trust }
         }
@@ -42,8 +64,39 @@ export default function CheckoutPage() {
 
   const total = cartItems.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0)
 
-  const handlePlaceOrder = async () => {
+  const handlePincodeCheck = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    updateShipping('pincode', val)
+    if (val.length === 6) {
+      setProcessingStatus("Verifying Logistics Protocol...")
+      const res = await LogisticsProtocol.checkServiceability(val)
+      setLogistics(res)
+      setProcessingStatus(null)
+    } else {
+      setLogistics(null)
+    }
+  }
+
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  const handlePayment = async () => {
+    if (!logistics?.serviceable && shippingForm.pincode.length === 6) {
+        return alert("Logistics Protocol: The specified pincode is outside our white-glove delivery network.")
+    }
+
+    const enabled = process.env.NEXT_PUBLIC_CHECKOUT_ENABLED !== 'false';
+    const mode = process.env.NEXT_PUBLIC_PAYMENT_MODE || "mock"
+
+    if (!enabled) {
+        setProcessingStatus(null);
+        alert("Institutional Acquisition Gateway is currently in Maintenance Mode. Reconvene later.");
+        return;
+    }
+
+    setProcessingStatus("Initializing Secure Protocol...");
     setLoading(true)
+    setPaymentError(null);
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -52,73 +105,162 @@ export default function CheckoutPage() {
         return
       }
 
-      // Prepare items for the RPC
-      const itemsForRpc = cartItems.map(item => ({
-        product_id: item.productId,
-        quantity: item.qty || 1,
-        expected_price: item.price,
-        selected_size: item.size || "N/A"
-      }))
-
       // Get shipping data from the form
-      const shippingData = {
-        fullName: (document.querySelector('input[placeholder="Full Name"]') as HTMLInputElement)?.value,
-        phone: (document.querySelector('input[placeholder="Phone Number"]') as HTMLInputElement)?.value,
-        address: (document.querySelector('input[placeholder="Shipping Address"]') as HTMLInputElement)?.value,
-        city: (document.querySelector('input[placeholder="City"]') as HTMLInputElement)?.value,
-        pincode: (document.querySelector('input[placeholder="ZIP / Pincode"]') as HTMLInputElement)?.value || "000000"
+      const shippingData = shippingForm
+
+      if (!shippingData.fullName || !shippingData.phone || !shippingData.address || !shippingData.pincode) {
+        alert("Logistics context required: Please complete shipping fields.");
+        setLoading(false);
+        setProcessingStatus(null);
+        return;
       }
 
-      if (!shippingData.fullName || !shippingData.phone || !shippingData.address) {
-        alert("Logistics context required: Please complete shipping fields.")
-        setLoading(false)
-        return
-      }
-
-      // Execute atomic bulk transaction
-      const { data, error } = await supabase.rpc("place_bulk_order", {
-        p_items: itemsForRpc,
-        p_full_name: shippingData.fullName,
-        p_phone: shippingData.phone,
-        p_address: shippingData.address,
-        p_city: shippingData.city,
-        p_pincode: shippingData.pincode
-      })
-
-      if (error) throw error
-      if (data && !data.ok) throw new Error(data.message)
-
-      // 4. Protocol Finalization
-      alert("Protocol Synchronized: Acquisition Confirmed! 🎉")
-
-      // Log Revenue Pulse
-      if (data && data.order_id) {
-        Analytics.logCheckoutComplete(user.id, data.order_id)
-      }
-
-      // Clear Purchased Items from Main Cart
-      const fullCart = JSON.parse(localStorage.getItem("hstn_cart") || "[]")
-      const purchasedKeys = cartItems.map(i => `${i.productId}-${i.size}`)
+      // 1. Create Razorpay order via API
+      // 🔐 FETCH AUTH TOKEN (Sync with SSR)
+      const { data: { session } } = await supabase.auth.getSession();
       
-      const remainingCart = fullCart.filter((item: any) => {
-        const itemKey = `${item.productId}-${item.size}`
-        return !purchasedKeys.includes(itemKey)
+      const res = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token || ""}`
+        },
+        body: JSON.stringify({
+          amount: total,
+          cart: cartItems,
+          shipping: shippingData,
+        }),
       })
 
-      localStorage.setItem("hstn_cart", JSON.stringify(remainingCart))
-      localStorage.removeItem("hstn_checkout_items")
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Acquisition protocol failed: Failed to create payment order");
+      }
+      
+      const order = await res.json();
+      setProcessingStatus("Launching Transaction...")
 
-      window.dispatchEvent(new Event("hstn-cart-updated"))
-      router.push("/orders")
+      // 🕵️ MOCK MODE HANDLER
+      if (mode === "mock") {
+        setProcessingStatus("Simulating Protocol (Mock Mode)...");
+        const verifyRes = await fetch("/api/verify-payment", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token || ""}`
+          },
+          body: JSON.stringify({
+            razorpay_order_id: order.id,
+            razorpay_payment_id: "mock_pay_" + Date.now(),
+            razorpay_signature: "mock_signature",
+            cart: cartItems,
+            shipping: shippingData,
+          }),
+        });
+
+        if (!verifyRes.ok) {
+          const verifyError = await verifyRes.json().catch(() => ({}));
+          throw new Error(verifyError.error || "Mock verification failed");
+        }
+        
+        const verifyData = await verifyRes.json();
+        
+        if (verifyData.success) {
+          Analytics.logCheckoutComplete(user.id, verifyData.order_id);
+          const fullCart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
+          const purchasedKeys = cartItems.map(i => `${i.productId}-${i.size}`)
+          const remainingCart = fullCart.filter((item: any) => !purchasedKeys.includes(`${item.productId}-${item.size}`))
+          localStorage.setItem("hstnlx_cart", JSON.stringify(remainingCart))
+          localStorage.removeItem("hstnlx_checkout_items")
+          window.dispatchEvent(new Event("hstnlx-cart-updated"))
+          router.push(`/checkout/success?order_id=${verifyData.order_id}`)
+        }
+        return;
+      }
+      
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: "INR",
+        name: "HSTNLX",
+        description: "Official Acquisition",
+        order_id: order.id,
+        handler: async function (response: any) {
+          try {
+            setProcessingStatus("Verifying Signature & Finalizing...")
+            const verifyRes = await fetch("/api/verify-payment", {
+              method: "POST",
+              headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${session?.access_token || ""}`
+              },
+              body: JSON.stringify({
+                ...response,
+                cart: cartItems,
+                shipping: shippingData,
+              }),
+            });
+
+            if (!verifyRes.ok) throw new Error("Payment verification failed");
+            const verifyData = await verifyRes.json();
+            
+            if (verifyData.success) {
+              Analytics.logCheckoutComplete(user.id, verifyData.order_id);
+              const fullCart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
+              const purchasedKeys = cartItems.map(i => `${i.productId}-${i.size}`)
+              const remainingCart = fullCart.filter((item: any) => !purchasedKeys.includes(`${item.productId}-${item.size}`))
+              localStorage.setItem("hstnlx_cart", JSON.stringify(remainingCart))
+              localStorage.removeItem("hstnlx_checkout_items")
+              window.dispatchEvent(new Event("hstnlx-cart-updated"))
+              router.push(`/checkout/success?order_id=${verifyData.order_id}`)
+            } else {
+              throw new Error("Payment verification failed");
+            }
+          } catch (err: any) {
+            console.error("Verification error:", err);
+            setProcessingStatus(null);
+            setLoading(false);
+            setPaymentError(err.message || "Institutional protocol breach during verification.");
+          }
+        },
+        modal: {
+          ondismiss: async () => {
+            setProcessingStatus(null);
+            setLoading(false);
+          }
+        },
+        prefill: {
+          name: user.email?.split('@')[0],
+          email: user.email,
+        },
+        theme: {
+          color: "#FFFFFF",
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+         setProcessingStatus(null);
+         setLoading(false);
+         setPaymentError(response.error.description || "Transaction failed.");
+      });
+      rzp.open();
     } catch (error: any) {
-      console.error("Order processing error:", error)
-      alert(`Acquisition protocol failed: ${error.message || "Internal Error"}`)
-    } finally {
-      setLoading(false)
+      console.error("Acquisition protocol failure:", error)
+      setProcessingStatus(null);
+      setLoading(false);
+      setPaymentError(error.message || "Institutional protocol breach. Transaction terminated.");
+      // 🔴 EMERGENCY UNLOCK FRONTEND
+      try {
+          const { data } = await supabase.auth.getUser();
+          if (data?.user) {
+             await supabase.rpc("release_checkout_lock", { p_user_id: data.user.id });
+          }
+      } catch (e) { console.error(e) }
     }
   }
 
-  if (loading) return (
+  if (loading && !processingStatus) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
     </div>
@@ -135,7 +277,7 @@ export default function CheckoutPage() {
             <div className="flex items-start gap-4 z-10">
               <span className="text-3xl mt-1">🛡️</span>
               <div>
-                <p className="text-caption font-bold uppercase tracking-[0.2em] text-white">HSTN Escrow Protection</p>
+                <p className="text-caption font-bold uppercase tracking-[0.2em] text-white">HSTNLX Escrow Protection</p>
                 <div className="flex items-center gap-2 mt-2">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                   <p className="text-[10px] text-green-500 uppercase tracking-widest font-bold">Your payment is held securely.</p>
@@ -155,9 +297,28 @@ export default function CheckoutPage() {
         <header className="mb-16 text-center">
           <span className="text-caption uppercase tracking-[0.4em] text-primary font-bold">Secure Gateway</span>
           <h1 className="text-display mt-2 uppercase tracking-tighter">Acquisition Protocol</h1>
+          
+          {paymentError && (
+             <div className="mt-8 p-6 bg-red-500/10 border border-red-500/20 rounded-3xl animate-in fade-in slide-in-from-top-4 duration-500">
+                <p className="text-[10px] text-red-500 font-black uppercase tracking-widest">{paymentError}</p>
+                <button 
+                  onClick={() => setPaymentError(null)}
+                  className="mt-4 text-[9px] underline font-bold uppercase tracking-widest text-white/40 hover:text-white"
+                >
+                  Clear & Retry Initialization
+                </button>
+             </div>
+          )}
+          
+          {processingStatus && (
+            <div className="mt-8 flex flex-col items-center gap-4 animate-pulse">
+                <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                <p className="text-[10px] uppercase tracking-[0.4em] text-primary font-bold">{processingStatus}</p>
+            </div>
+          )}
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-16">
+        <div className={`grid grid-cols-1 lg:grid-cols-5 gap-16 ${processingStatus ? 'pointer-events-none opacity-50' : ''}`}>
           <div className="lg:col-span-3 space-y-12">
             {/* Section 1: Shipping */}
             <section className="space-y-8">
@@ -166,10 +327,25 @@ export default function CheckoutPage() {
                 <h2 className="text-h3 uppercase tracking-widest font-bold">Destinations</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <input placeholder="Full Name" className="sm:col-span-2 bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
-                <input placeholder="Shipping Address" className="sm:col-span-2 bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
-                <input placeholder="City" className="bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
-                <input placeholder="Phone Number" className="bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
+                <input placeholder="Full Name" value={shippingForm.fullName} onChange={e => updateShipping('fullName', e.target.value)} className="sm:col-span-2 bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
+                <input placeholder="Shipping Address" value={shippingForm.address} onChange={e => updateShipping('address', e.target.value)} className="sm:col-span-2 bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
+                <input placeholder="City" value={shippingForm.city} onChange={e => updateShipping('city', e.target.value)} className="bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
+                <div className="relative">
+                    <input 
+                        placeholder="Pincode" 
+                        maxLength={6}
+                        value={shippingForm.pincode}
+                        onChange={handlePincodeCheck}
+                        className={`w-full bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 transition-smooth ${logistics?.serviceable ? 'ring-green-500' : logistics === null ? 'ring-primary' : 'ring-red-500'}`} 
+                    />
+                    {logistics?.serviceable && (
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500 text-[9px] font-black uppercase tracking-widest">Serviceable</span>
+                    )}
+                    {logistics && !logistics.serviceable && (
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 text-[9px] font-black uppercase tracking-widest">Unserviceable</span>
+                    )}
+                </div>
+                <input placeholder="Phone Number" value={shippingForm.phone} onChange={e => updateShipping('phone', e.target.value)} className="sm:col-span-2 bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
               </div>
             </section>
 
@@ -187,28 +363,25 @@ export default function CheckoutPage() {
                   onClick={() => setPaymentMethod("card")}
                   className={`flex-1 p-6 rounded-2xl border-2 transition-smooth text-left ${paymentMethod === "card" ? "border-primary bg-primary/5" : "border-border opacity-60"}`}
                 >
-                  <p className="text-caption font-bold uppercase tracking-widest mb-2">Prepaid Card</p>
-                  <p className="text-[10px] text-muted">Instant processing • Secured by 256-bit encryption</p>
+                  <p className="text-caption font-bold uppercase tracking-widest mb-2">Electronic Transfer</p>
+                  <p className="text-[10px] text-muted">Razorpay Gateway • Secured by 256-bit encryption</p>
                 </button>
                 <button
-                  onClick={() => setPaymentMethod("cod")}
-                  className={`flex-1 p-6 rounded-2xl border-2 transition-smooth text-left ${paymentMethod === "cod" ? "border-primary bg-primary/5" : "border-border opacity-60"}`}
+                  disabled
+                  className="flex-1 p-6 rounded-2xl border-2 border-border opacity-20 text-left cursor-not-allowed"
                 >
                   <p className="text-caption font-bold uppercase tracking-widest mb-2">Cash on Delivery</p>
-                  <p className="text-[10px] text-muted">Verify on arrival • Restricted to selected PIN codes</p>
+                  <p className="text-[10px] text-muted">Inactive for this asset tier</p>
                 </button>
               </div>
 
-              {paymentMethod === "card" && (
-                <div className="luxury-card p-10 bg-accent/10 border-none space-y-6 animate-fade-in">
-                  <input placeholder="Full Name on Card" className="w-full bg-white border border-border rounded-xl px-6 py-4 text-body outline-none focus:border-primary transition-smooth" />
-                  <input placeholder="16 Digit Card Number" className="w-full bg-white border border-border rounded-xl px-6 py-4 text-body outline-none focus:border-primary transition-smooth" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <input placeholder="MM / YY" className="bg-white border border-border rounded-xl px-6 py-4 text-body outline-none focus:border-primary transition-smooth" />
-                    <input placeholder="CVC" className="bg-white border border-border rounded-xl px-6 py-4 text-body outline-none focus:border-primary transition-smooth" />
-                  </div>
-                </div>
-              )}
+              <div className="luxury-card p-10 bg-accent/10 border-none space-y-4 animate-fade-in text-center">
+                  <p className="text-caption font-bold text-white mb-2">Electronic Transaction Interface</p>
+                  <p className="text-[10px] text-white/50 uppercase tracking-[0.2em] leading-relaxed">
+                    Razorpay Secure Gateway will be initialized upon protocol launch.<br/>
+                    Ensuring institutional-grade security for your acquisition.
+                  </p>
+              </div>
             </section>
           </div>
 
@@ -318,14 +491,14 @@ export default function CheckoutPage() {
               </div>
 
               <button
-                onClick={handlePlaceOrder}
+                onClick={handlePayment}
                 className="luxury-button w-full !text-[11px] uppercase tracking-[0.3em] font-bold"
               >
                 Launch Transaction
               </button>
 
               <div className="text-[9px] text-center text-white/30 uppercase tracking-[0.2em] leading-relaxed">
-                <p>Escrow payment verified by HSTN Network</p>
+                <p>Escrow payment verified by HSTNLX Network</p>
                 <p>White-glove delivery guaranteed</p>
               </div>
             </div>

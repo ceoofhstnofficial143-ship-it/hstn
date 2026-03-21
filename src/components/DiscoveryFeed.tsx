@@ -28,7 +28,7 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
             let query = supabase
                 .from("products")
                 .select(`
-                    id, title, price, image_url, category, user_id, views,
+                    *,
                     profiles!products_user_id_fkey(username)
                 `)
                 .eq("admin_status", "approved")
@@ -56,10 +56,7 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
                 if (userStyles && userStyles.length > 0) {
                     const { data: generalData } = await supabase
                         .from("products")
-                        .select(`
-                            id, title, price, image_url, category, user_id, views,
-                            profiles!products_user_id_fkey(username)
-                        `)
+                        .select(`*, profiles!products_user_id_fkey(username)`)
                         .eq("admin_status", "approved")
                         .order("created_at", { ascending: false })
                         .range(start, end)
