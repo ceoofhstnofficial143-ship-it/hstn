@@ -108,61 +108,75 @@ export default function CartPage() {
                 const isSelected = selectedIds.includes(itemKey);
                 
                 return (
-                  <div key={itemKey} className={`group relative flex gap-8 items-center p-6 rounded-[2.5rem] transition-all duration-700 border-2 ${isSelected ? 'bg-white border-black shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] scale-[1.02]' : 'bg-gray-50/30 border-transparent opacity-40 grayscale-0 border-gray-100'}`}>
-                    <div className="flex flex-col items-center gap-6">
+                  <div key={itemKey} className={`group relative flex flex-col sm:flex-row gap-4 sm:gap-8 items-start sm:items-center p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] transition-all duration-700 border-2 ${isSelected ? 'bg-white border-black shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] scale-100 sm:scale-[1.02]' : 'bg-gray-50/30 border-transparent opacity-60 grayscale-0 border-gray-100'}`}>
+                    
+                    {/* Top Section Desktop / Left Section Mobile */}
+                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                      <div className="flex flex-col items-center justify-center">
+                        <button
+                          onClick={() => toggleSelect(itemKey)}
+                          className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center transition-all duration-500 flex-shrink-0 ${isSelected ? 'bg-black border-black' : 'border-gray-300 hover:border-black'}`}
+                        >
+                          {isSelected && <span className="text-white text-[8px] sm:text-[10px] font-black italic">✓</span>}
+                        </button>
+                      </div>
+
+                      <Link href={`/product/${item.productId}`} className="w-20 h-28 sm:w-24 sm:h-32 lg:w-32 lg:h-44 rounded-2xl overflow-hidden flex-shrink-0 relative bg-gray-100 shadow-xl group-hover:shadow-2xl transition-all duration-700">
+                        <Image 
+                          src={item.image || '/placeholder.jpg'} 
+                          alt={item.title} 
+                          fill 
+                          className="object-cover group-hover:scale-110 transition-transform duration-1000" 
+                          sizes="(max-width: 640px) 80px, 128px"
+                        />
+                      </Link>
+                      
+                      {/* Mobile Delete Option (Visible only on Mobile) */}
                       <button
-                        onClick={() => toggleSelect(itemKey)}
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${isSelected ? 'bg-black border-black' : 'border-gray-200 hover:border-black'}`}
+                        onClick={() => removeItem(itemKey)}
+                        className="sm:hidden ml-auto w-8 h-8 flex flex-shrink-0 items-center justify-center bg-gray-100 hover:bg-black hover:text-white rounded-full text-xs transition-all"
                       >
-                        {isSelected && <span className="text-white text-[10px] font-black italic">✓</span>}
+                        ✕
                       </button>
                     </div>
 
-                    <Link href={`/product/${item.productId}`} className="w-24 h-32 lg:w-32 lg:h-44 rounded-2xl overflow-hidden flex-shrink-0 relative bg-gray-100 shadow-xl group-hover:shadow-2xl transition-all duration-700">
-                      <Image 
-                        src={item.image || '/placeholder.jpg'} 
-                        alt={item.title} 
-                        fill 
-                        className="object-cover group-hover:scale-110 transition-transform duration-1000" 
-                        sizes="128px"
-                      />
-                    </Link>
-
-                    <div className="flex-1 space-y-4">
+                    {/* Content Section */}
+                    <div className="flex-1 w-full space-y-4 sm:space-y-4">
                       <div className="flex justify-between items-start">
-                        <div>
-                           <span className="text-[7px] font-black uppercase tracking-[0.5em] text-gray-300">Grade A Entry</span>
-                           <h3 className="text-lg font-black italic tracking-tighter uppercase mt-1 leading-tight">{item.title}</h3>
-                           <div className="flex items-center gap-4 mt-3">
-                              <span className="px-3 py-1 bg-black text-white text-[9px] font-black rounded-lg">SIZE: {item.size}</span>
-                              <span className="text-[10px] font-black text-primary italic tracking-tight">₹{item.price.toLocaleString()} / unit</span>
+                        <div className="w-full">
+                           <span className="text-[6px] sm:text-[7px] font-black uppercase tracking-[0.5em] text-gray-300 line-clamp-1">Grade A Entry</span>
+                           <h3 className="text-sm sm:text-lg font-black italic tracking-tighter uppercase mt-1 leading-tight line-clamp-2">{item.title}</h3>
+                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 sm:mt-3">
+                              <span className="px-2 sm:px-3 py-1 bg-black text-white text-[8px] sm:text-[9px] font-black rounded-lg">SIZE: {item.size}</span>
+                              <span className="text-[9px] sm:text-[10px] font-black text-primary italic tracking-tight">₹{item.price.toLocaleString()} / unit</span>
                            </div>
                         </div>
+                        {/* Desktop Delete Option */}
                         <button
                           onClick={() => removeItem(itemKey)}
-                          className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-black hover:text-white rounded-full text-xs transition-all opacity-0 group-hover:opacity-100"
+                          className="hidden sm:flex flex-shrink-0 w-8 h-8 items-center justify-center bg-gray-100 hover:bg-black hover:text-white rounded-full text-xs transition-all opacity-0 group-hover:opacity-100"
                         >
                           ✕
                         </button>
                       </div>
 
-                      <div className="flex items-center justify-between pt-4 border-t border-gray-100/50">
-                        <div className="flex items-center gap-3">
+                      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 pt-4 border-t border-gray-100/50">
+                        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
                           <div className="flex items-center bg-gray-50 p-1 rounded-xl border border-gray-100">
-                             <button onClick={() => updateQuantity(itemKey, -1)} className="w-8 h-8 text-sm font-black hover:text-primary transition-all">−</button>
-                             <span className="w-8 text-center text-[11px] font-black italic">{item.qty || 1}</span>
-                             <button onClick={() => updateQuantity(itemKey, 1)} className="w-8 h-8 text-sm font-black hover:text-primary transition-all">+</button>
+                             <button onClick={() => updateQuantity(itemKey, -1)} className="w-7 h-7 sm:w-8 sm:h-8 text-sm font-black hover:text-primary transition-all">−</button>
+                             <span className="w-6 sm:w-8 text-center text-[10px] sm:text-[11px] font-black italic">{item.qty || 1}</span>
+                             <button onClick={() => updateQuantity(itemKey, 1)} className="w-7 h-7 sm:w-8 sm:h-8 text-sm font-black hover:text-primary transition-all">+</button>
                           </div>
                           <button
                             onClick={() => quickBuy(item)}
-                            className="px-4 py-2 bg-black text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-lg hover:bg-primary hover:text-black transition-all"
+                            className="px-3 sm:px-4 py-2 bg-black text-white text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] rounded-lg hover:bg-primary hover:text-black transition-all flex-shrink-0"
                           >
                             Buy Now
                           </button>
                         </div>
-                        <div className="text-right">
-                           <p className="text-[7px] font-black uppercase tracking-[0.4em] text-gray-300 mb-1">Subtotal</p>
-                           <p className="text-xl font-black italic tracking-tighter">₹{(item.price * (item.qty || 1)).toLocaleString()}</p>
+                        <div className="w-full xl:w-auto text-left xl:text-right flex items-center xl:block justify-between bg-gray-50 xl:bg-transparent p-3 xl:p-0 rounded-xl xl:rounded-none">
+                           <p className="text-[7px] font-black uppercase tracking-[0.4em] text-gray-400 xl:text-gray-300 xl:mb-1">Subtotal</p>
+                           <p className="text-lg sm:text-xl font-black italic tracking-tighter">₹{(item.price * (item.qty || 1)).toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
