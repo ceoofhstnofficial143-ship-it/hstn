@@ -247,14 +247,14 @@ export default function OrderTrackingProtocol(props: { params: Promise<{ id: str
                          A formal dispute has been logged for this acquisition. All financial transfers to the merchant have been intercepted. Institutional audit in progress.
                      </p>
                  ) : (
-                     <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                         <p className="text-[9px] text-muted uppercase tracking-widest leading-relaxed max-w-xs font-medium">
+                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                         <p className="text-[9px] text-muted uppercase tracking-widest leading-relaxed max-w-xs font-medium text-center md:text-left">
                              Not as described? Assets damaged? You have 48 hours to trigger the Dispute Protocol before funds are released.
                          </p>
                          {['shipped', 'delivered'].includes(order.status) && !isDisputeFormOpen && (
                             <button 
                                 onClick={() => setIsDisputeFormOpen(true)}
-                                className="text-[10px] font-black uppercase tracking-widest text-red-500 border-b-2 border-red-500/20 hover:border-red-500 transition-all pb-1"
+                                className="luxury-button w-full md:w-auto !bg-red-500/10 !text-red-500 !border-red-500/20 hover:!bg-red-500 hover:!text-white transition-all text-[10px] font-black uppercase tracking-widest"
                             >
                                 Initialize Conflict Audit
                             </button>
