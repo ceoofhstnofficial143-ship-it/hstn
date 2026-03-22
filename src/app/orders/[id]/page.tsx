@@ -38,20 +38,22 @@ export default function OrderTrackingProtocol(props: { params: Promise<{ id: str
     fetchOrder()
   }, [params.id])
 
-  const handleDispute = async () => {
-    const reason = prompt("Initialize Dispute Protocol: MISSION CRITICAL\n\nPlease state the primary reason for conflict (e.g., Damaged Asset, Misrepresented Silhouette, Counterfeit Suspicion):")
-    if (!reason) return
+  const [isDisputeFormOpen, setIsDisputeFormOpen] = useState(false)
+  const [disputeReason, setDisputeReason] = useState('Damaged Asset')
+  const [disputeDetails, setDisputeDetails] = useState('')
 
-    const details = prompt("Please provide specific forensic details for the institutional audit:")
-    if (!details) return
-
-    if (!confirm("Proceed with Formal Dispute? This will freeze the Merchant's Payout Ledger immediately.")) return
+  const handleDisputeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!disputeDetails.trim()) {
+        alert("Please provide specific forensic details.")
+        return
+    }
 
     setLoading(true)
     const { error } = await supabase.rpc('initialize_order_dispute', {
         p_order_id: params.id,
-        p_reason: reason,
-        p_details: details
+        p_reason: disputeReason,
+        p_details: disputeDetails
     })
 
     if (error) {
@@ -249,15 +251,62 @@ export default function OrderTrackingProtocol(props: { params: Promise<{ id: str
                          <p className="text-[9px] text-muted uppercase tracking-widest leading-relaxed max-w-xs font-medium">
                              Not as described? Assets damaged? You have 48 hours to trigger the Dispute Protocol before funds are released.
                          </p>
-                         {['shipped', 'delivered'].includes(order.status) && (
+                         {['shipped', 'delivered'].includes(order.status) && !isDisputeFormOpen && (
                             <button 
-                                onClick={handleDispute}
+                                onClick={() => setIsDisputeFormOpen(true)}
                                 className="text-[10px] font-black uppercase tracking-widest text-red-500 border-b-2 border-red-500/20 hover:border-red-500 transition-all pb-1"
                             >
                                 Initialize Conflict Audit
                             </button>
                          )}
                      </div>
+                 )}
+
+                 {/* Premium Dispute Inline Form */}
+                 {isDisputeFormOpen && !order.is_disputed && (
+                    <div className="mt-8 pt-8 border-t border-border animate-fade-in">
+                        <div className="mb-6">
+                            <span className="text-[9px] uppercase tracking-[0.4em] font-black text-red-500 mb-2 block">Mission Critical</span>
+                            <h4 className="text-2xl font-black uppercase italic tracking-tighter">Submit Dispute Case</h4>
+                            <p className="text-xs text-muted mt-2 font-medium">Institutional audit will freeze merchant payout immediately.</p>
+                        </div>
+                        
+                        <form onSubmit={handleDisputeSubmit} className="space-y-6">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest mb-3">Primary Reason</label>
+                                <select 
+                                    value={disputeReason}
+                                    onChange={(e) => setDisputeReason(e.target.value)}
+                                    className="w-full bg-background border border-border p-4 text-sm focus:outline-none focus:border-red-500 transition-colors uppercase tracking-widest font-bold"
+                                >
+                                    <option value="Damaged Asset">Damaged Asset</option>
+                                    <option value="Misrepresented Silhouette">Misrepresented Silhouette</option>
+                                    <option value="Counterfeit Suspicion">Counterfeit Suspicion</option>
+                                    <option value="Logistics Failure">Logistics Failure / Not Received</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest mb-3">Forensic Details</label>
+                                <textarea 
+                                    value={disputeDetails}
+                                    onChange={(e) => setDisputeDetails(e.target.value)}
+                                    placeholder="Provide explicit details of the incident..."
+                                    className="w-full bg-background border border-border p-4 h-32 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder:text-muted/50 resize-none font-medium"
+                                    required
+                                />
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                                <button type="button" onClick={() => setIsDisputeFormOpen(false)} className="luxury-button !bg-background !text-foreground !border-border w-full sm:w-auto uppercase tracking-widest text-[10px] font-black">
+                                    Abort
+                                </button>
+                                <button type="submit" className="luxury-button !bg-red-500 !text-white !border-red-600 w-full sm:w-auto uppercase tracking-widest text-[10px] font-black shadow-lg shadow-red-500/20">
+                                    Confirm Audit Parameters
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                  )}
             </div>
 
