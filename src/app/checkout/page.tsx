@@ -45,15 +45,23 @@ export default function CheckoutPage() {
       }
 
       const itemsWithTrust = await Promise.all(items.map(async (item: any) => {
-        if (!item.trust) {
+        let sellerId = item.seller_id;
+        
+        // Fix for legacy items missing seller_id
+        if (!sellerId) {
+          const { data: prod } = await supabase.from("products").select("user_id").eq("id", item.productId).single();
+          sellerId = prod?.user_id;
+        }
+
+        if (!item.trust && sellerId) {
           const { data: trust } = await supabase
             .from("trust_scores")
             .select("score, verified")
-            .eq("user_id", item.seller_id)
+            .eq("user_id", sellerId)
             .single()
-          return { ...item, trust }
+          return { ...item, seller_id: sellerId, trust }
         }
-        return item
+        return { ...item, seller_id: sellerId };
       }))
 
       setCartItems(itemsWithTrust)

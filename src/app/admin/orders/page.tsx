@@ -38,6 +38,7 @@ export default function AdminOrders() {
     }
 
     const updateStatus = async (id: string, newStatus: string) => {
+        // 1. Update the order status
         const { error } = await supabase
             .from("orders")
             .update({ status: newStatus })
@@ -45,9 +46,25 @@ export default function AdminOrders() {
 
         if (error) {
             alert(`Protocol failure: ${error.message}`)
-        } else {
-            fetchOrders()
+            return
         }
+
+        // 2. Sync seller payout status — map order states to valid payout states
+        const payoutStatusMap: Record<string, string> = {
+            delivered: 'processing',  // Delivery confirmed → initiate payout
+            cancelled: 'reversed',    // Order cancelled → reverse payout
+            refunded:  'reversed',    // Refund issued → reverse payout
+        }
+        const payoutStatus = payoutStatusMap[newStatus]
+        if (payoutStatus) {
+            await supabase
+                .from("seller_payouts")
+                .update({ status: payoutStatus })
+                .eq("order_id", id)
+                .eq("status", "pending") // Only update if still pending
+        }
+
+        fetchOrders()
     }
 
     if (loading) return <div className="animate-pulse space-y-8">

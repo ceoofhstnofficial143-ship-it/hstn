@@ -95,12 +95,41 @@ export async function POST(req: Request) {
     }
 
     // 🔐 4. UNIFIED ATOMIC FULFILLMENT (Hardened V13.6 RPC)
+    // 🛡️ SECURITY: Fetch session-of-record. DO NOT trust cart from client.
+    // 🔐 4. UNIFIED ATOMIC FULFILLMENT (Hardened V13.6 RPC)
+    // 🛡️ SECURITY: Fetch session-of-record. DO NOT trust cart from client.
+    let sessionData = null;
+    let sessionErr = null;
+    
+    // 🛡️ RETRY MECHANISM (Protocol Synchronization)
+    // Prevents race conditions during mock/fast verification
+    for (let i = 0; i < 4; i++) {
+        const { data, error } = await supabaseAdmin
+            .from("checkout_sessions")
+            .select("cart, shipping")
+            .eq("razorpay_order_id", razorpay_order_id)
+            .single();
+        
+        if (data) {
+            sessionData = data;
+            break;
+        }
+        
+        sessionErr = error;
+        if (i < 3) await new Promise(r => setTimeout(r, 500));
+    }
+    
+    if (!sessionData) {
+        console.error("Session matching protocol failure after retries. Potential fraudulent acquisition or async synchronization delay.");
+        throw new Error("Integrated Payment Session not found. Sequence out of sync.");
+    }
+
     const { data: orderId, error: rpcError } = await supabaseAdmin.rpc("place_order_after_payment", {
-      p_cart: cart,
+      p_cart: sessionData.cart,
       p_payment_id: razorpay_payment_id,
       p_razorpay_order_id: razorpay_order_id,
       p_is_verified: true,
-      p_shipping: shipping,
+      p_shipping: sessionData.shipping,
       p_user_id_override: user.id
     });
 

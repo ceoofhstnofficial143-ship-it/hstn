@@ -74,94 +74,95 @@ export default function CartPage() {
   )
 
   return (
-    <main className="bg-background min-h-screen animate-fade-in py-10 lg:py-20 px-4 sm:px-6">
-      <div className="section-container max-w-5xl">
-        <header className="mb-10 lg:mb-16 flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-border pb-8 gap-4">
-          <div>
-            <span className="text-[10px] uppercase tracking-[0.3em] text-primary font-bold">Acquisition Bag</span>
-            <h1 className="text-3xl lg:text-5xl mt-2 italic font-black uppercase tracking-tighter">The Private Vault</h1>
+    <main className="bg-white min-h-screen animate-fade-in py-12 lg:py-24 px-6">
+      <div className="max-w-6xl mx-auto">
+        <header className="mb-16 flex flex-col md:flex-row justify-between items-start md:items-end gap-8 border-b border-gray-100 pb-12">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full">
+               <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+               <span className="text-[8px] font-black uppercase tracking-[0.3em] text-primary">Secure Acquisition Layer</span>
+            </div>
+            <h1 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter leading-none">
+              The Vault
+            </h1>
           </div>
-          <Link href="/" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-all">
-            ← Continue Scouting
+          <Link href="/" className="group flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-black transition-all">
+            <span className="group-hover:-translate-x-2 transition-transform">←</span>
+            Resume Scouting
           </Link>
         </header>
 
         {cartItems.length === 0 ? (
-          <div className="py-24 lg:py-40 text-center luxury-card border-dashed border-2 bg-accent/5 rounded-[2rem]">
-            <span className="text-4xl mb-6 block">🛍️</span>
-            <h2 className="text-xl font-bold uppercase tracking-widest">Bag is Empty</h2>
-            <p className="text-[10px] text-muted uppercase tracking-widest mt-4">Your next high-velocity drop is waiting.</p>
-            <Link href="/" className="luxury-button mt-10 inline-block !py-4 !px-8">Explore Arrivals</Link>
+          <div className="py-40 text-center bg-gray-50/50 rounded-[3rem] border-2 border-dashed border-gray-100 flex flex-col items-center">
+            <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center text-3xl shadow-xl mb-10 opacity-20">💼</div>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter">Vault is Empty</h2>
+            <p className="text-[10px] text-gray-400 uppercase tracking-[0.3em] mt-4 font-black">Institutional assets awaiting scout initialization.</p>
+            <Link href="/" className="mt-12 px-12 py-5 bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.4em] hover:bg-primary hover:text-black transition-all shadow-2xl">Initialize scouting</Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
             {/* List (LEFT) */}
-            <div className="lg:col-span-8 space-y-4 lg:space-y-8">
+            <div className="lg:col-span-7 space-y-8">
               {cartItems.map((item) => {
                 const itemKey = getItemKey(item);
                 const isSelected = selectedIds.includes(itemKey);
                 
                 return (
-                  <div key={itemKey} className={`luxury-card p-4 lg:p-6 flex flex-col sm:flex-row gap-4 lg:gap-8 items-start sm:items-center transition-all duration-500 ${isSelected ? 'border-primary/40 bg-primary/5 shadow-xl' : 'opacity-60 grayscale scale-[0.98]'}`}>
-                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                  <div key={itemKey} className={`group relative flex gap-8 items-center p-6 rounded-[2.5rem] transition-all duration-700 border-2 ${isSelected ? 'bg-white border-black shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] scale-[1.02]' : 'bg-gray-50/30 border-transparent opacity-40 grayscale-0 border-gray-100'}`}>
+                    <div className="flex flex-col items-center gap-6">
                       <button
                         onClick={() => toggleSelect(itemKey)}
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-primary border-primary' : 'border-border hover:border-black'}`}
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${isSelected ? 'bg-black border-black' : 'border-gray-200 hover:border-black'}`}
                       >
-                        {isSelected && <span className="text-black text-[10px] font-bold">✓</span>}
+                        {isSelected && <span className="text-white text-[10px] font-black italic">✓</span>}
                       </button>
-
-                      <Link href={`/product/${item.productId}`} className="w-20 h-28 lg:w-24 lg:h-32 rounded-2xl overflow-hidden bg-accent/20 flex-shrink-0 relative group cursor-pointer">
-                        <Image 
-                          src={item.image || '/placeholder.jpg'} 
-                          alt={item.title} 
-                          fill 
-                          className="object-cover group-hover:scale-110 transition-transform duration-700" 
-                          sizes="(max-width: 640px) 80px, 96px"
-                        />
-                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[8px] px-2 py-1 rounded-md font-bold uppercase tracking-widest">
-                           {item.size}
-                        </div>
-                      </Link>
                     </div>
 
-                    <div className="flex-1 w-full">
-                      <div className="flex justify-between items-start mb-2">
+                    <Link href={`/product/${item.productId}`} className="w-24 h-32 lg:w-32 lg:h-44 rounded-2xl overflow-hidden flex-shrink-0 relative bg-gray-100 shadow-xl group-hover:shadow-2xl transition-all duration-700">
+                      <Image 
+                        src={item.image || '/placeholder.jpg'} 
+                        alt={item.title} 
+                        fill 
+                        className="object-cover group-hover:scale-110 transition-transform duration-1000" 
+                        sizes="128px"
+                      />
+                    </Link>
+
+                    <div className="flex-1 space-y-4">
+                      <div className="flex justify-between items-start">
                         <div>
-                          <Link href={`/product/${item.productId}`}>
-                            <h3 className="text-sm font-black uppercase tracking-tight line-clamp-1 hover:underline cursor-pointer">{item.title}</h3>
-                          </Link>
-                          <div className="flex flex-wrap gap-2 lg:gap-3 mt-1">
-                            <p className="text-[9px] text-primary uppercase tracking-widest font-black">Size: {item.size}</p>
-                            <span className="text-[9px] text-gray-200">|</span>
-                            <p className="text-[9px] text-muted uppercase tracking-widest font-bold">₹{item.price.toLocaleString()}</p>
-                          </div>
+                           <span className="text-[7px] font-black uppercase tracking-[0.5em] text-gray-300">Grade A Entry</span>
+                           <h3 className="text-lg font-black italic tracking-tighter uppercase mt-1 leading-tight">{item.title}</h3>
+                           <div className="flex items-center gap-4 mt-3">
+                              <span className="px-3 py-1 bg-black text-white text-[9px] font-black rounded-lg">SIZE: {item.size}</span>
+                              <span className="text-[10px] font-black text-primary italic tracking-tight">₹{item.price.toLocaleString()} / unit</span>
+                           </div>
                         </div>
                         <button
                           onClick={() => removeItem(itemKey)}
-                          className="text-muted hover:text-red-500 transition-all p-2 -mr-2 bg-gray-50 rounded-full"
+                          className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-black hover:text-white rounded-full text-xs transition-all opacity-0 group-hover:opacity-100"
                         >
                           ✕
                         </button>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-4 lg:mt-6 gap-4">
-                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-                          <div className="flex items-center gap-4 bg-white px-3 py-1.5 rounded-full border border-border shadow-sm">
-                            <button onClick={() => updateQuantity(itemKey, -1)} className="text-muted hover:text-primary font-bold px-2 text-lg">−</button>
-                            <span className="text-[11px] font-black w-4 text-center">{item.qty || 1}</span>
-                            <button onClick={() => updateQuantity(itemKey, 1)} className="text-muted hover:text-primary font-bold px-2 text-lg">+</button>
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-100/50">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center bg-gray-50 p-1 rounded-xl border border-gray-100">
+                             <button onClick={() => updateQuantity(itemKey, -1)} className="w-8 h-8 text-sm font-black hover:text-primary transition-all">−</button>
+                             <span className="w-8 text-center text-[11px] font-black italic">{item.qty || 1}</span>
+                             <button onClick={() => updateQuantity(itemKey, 1)} className="w-8 h-8 text-sm font-black hover:text-primary transition-all">+</button>
                           </div>
                           <button
                             onClick={() => quickBuy(item)}
-                            className="text-[8px] uppercase tracking-widest font-bold text-primary border border-primary/20 px-4 py-2 rounded-full hover:bg-primary hover:text-black transition-all bg-primary/5"
+                            className="px-4 py-2 bg-black text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-lg hover:bg-primary hover:text-black transition-all"
                           >
-                            Acquire Now ⚡
+                            Buy Now
                           </button>
                         </div>
-                        <div className="text-right w-full sm:w-auto border-t sm:border-none pt-4 sm:pt-0">
-                           <p className="text-[9px] text-gray-400 uppercase font-black tracking-widest mb-1">Subtotal</p>
-                           <p className="text-xl font-black text-foreground">₹ {(item.price * (item.qty || 1)).toLocaleString()}</p>
+                        <div className="text-right">
+                           <p className="text-[7px] font-black uppercase tracking-[0.4em] text-gray-300 mb-1">Subtotal</p>
+                           <p className="text-xl font-black italic tracking-tighter">₹{(item.price * (item.qty || 1)).toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
@@ -171,32 +172,45 @@ export default function CartPage() {
             </div>
 
             {/* Summary (RIGHT) */}
-            <div className="lg:col-span-4">
-              <div className="luxury-card p-8 lg:p-10 bg-black text-white border-none sticky top-28 space-y-8 shadow-2xl">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Transaction Metrics</h3>
-
-                <div className="space-y-4">
-                  <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-                    <span className="text-gray-500">Selected Pieces</span>
-                    <span>{selectedIds.length}</span>
-                  </div>
-                  <div className="flex justify-between text-2xl font-black border-t border-white/10 pt-6 italic tracking-tighter">
-                    <span>Total</span>
-                    <span className="text-primary">₹ {total.toLocaleString()}</span>
-                  </div>
+            <div className="lg:col-span-5">
+              <div className="bg-black text-white p-10 lg:p-14 rounded-[3.5rem] sticky top-28 space-y-12 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden border border-white/5">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[100px] rounded-full -mr-20 -mt-20" />
+                
+                <div>
+                   <span className="text-[8px] font-black uppercase tracking-[0.4em] text-gray-500">Transaction Registry</span>
+                   <h3 className="text-3xl font-black italic uppercase tracking-tighter mt-2">Manifest Summary</h3>
                 </div>
 
-                <button
-                  onClick={proceedToCheckout}
-                  disabled={selectedItems.length === 0}
-                  className="luxury-button w-full !bg-primary !text-black !py-5 !text-[11px] uppercase tracking-[0.2em] font-black shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Initialize Acquisition
-                </button>
+                <div className="space-y-6">
+                   <div className="flex justify-between items-center py-4 border-b border-white/5">
+                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Authorized Pieces</span>
+                      <span className="text-sm font-black italic tracking-tighter">{selectedIds.length}</span>
+                   </div>
+                   <div className="flex justify-between items-center py-4 border-b border-white/5">
+                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Logistics Node</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-green-400">Direct Delivery</span>
+                   </div>
+                   <div className="flex justify-between items-end pt-10">
+                      <div className="space-y-1">
+                         <span className="text-[9px] font-black uppercase tracking-[0.5em] text-gray-500">Net Valuation</span>
+                         <p className="text-5xl font-black italic tracking-tighter text-primary">₹{total.toLocaleString()}</p>
+                      </div>
+                   </div>
+                </div>
 
-                <p className="text-[8px] text-center text-white/30 uppercase tracking-[0.2em] leading-relaxed">
-                  Prices include verified protocol auditing. <br /> Security clearance required at next step.
-                </p>
+                <div className="space-y-4 pt-10">
+                   <button
+                    onClick={proceedToCheckout}
+                    disabled={selectedItems.length === 0}
+                    className="w-full py-6 bg-white text-black rounded-[2rem] text-xs font-black uppercase tracking-[0.4em] hover:scale-105 transition-all shadow-2xl disabled:opacity-20 flex items-center justify-center gap-10 group"
+                   >
+                     <span>Initialize Acquisition</span>
+                     <span className="group-hover:translate-x-2 transition-transform">→</span>
+                   </button>
+                   <p className="text-[7px] text-center text-white/30 uppercase tracking-[0.3em] leading-relaxed">
+                     By initializing, you confirm adherence to the <br /> HSTNLX Global Trust Protocol.
+                   </p>
+                </div>
               </div>
             </div>
           </div>

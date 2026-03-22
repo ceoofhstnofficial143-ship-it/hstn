@@ -50,20 +50,8 @@ export default function Home() {
   ]
 
   const filteredProducts = useMemo(() => {
-    let result = products
-
-    if (selectedCategory !== "ALL") {
-      result = result.filter((p) =>
-        p.category?.toLowerCase() === selectedCategory.toLowerCase()
-      )
-    }
-
-    if (inStockOnly) {
-      result = result.filter((p) => p.stock > 0)
-    }
-
-    return result
-  }, [products, selectedCategory, selectedSize, inStockOnly])
+    return products
+  }, [products])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
@@ -228,7 +216,7 @@ export default function Home() {
       setProducts(prev => [...prev, ...ranked])
       setPage(currentPage)
     } else {
-      setProducts(ranked ?? [])
+      setProducts(ranked || [])
     }
 
     setLoading(false)
@@ -406,12 +394,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-100 sticky top-0 bg-white/95 backdrop-blur-sm z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="w-full max-w-2xl relative search-container">
+      <header className="border-b border-gray-100 sticky top-0 bg-white/80 backdrop-blur-xl z-[100] transition-all duration-500">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-8">
+          {/* 🔍 COMMAND CENTER (Search) */}
+          <div className="flex-1 relative group">
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none opacity-40 group-focus-within:opacity-100 transition-opacity">
+              <span className="text-xs font-black">CMD+K</span>
+            </div>
             <input
               type="text"
-              placeholder="Search products, sellers, categories..."
+              placeholder="Search Archives, Merchants, or Silhouettes..."
               value={query}
               onChange={(e) => { 
                 const val = e.target.value;
@@ -419,7 +411,6 @@ export default function Home() {
                 if (val.trim().length >= 1) {
                   setShowTrending(false);
                   setShowSuggestions(true);
-                  // Proper debounce using ref
                   if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
                   searchDebounceRef.current = setTimeout(() => generateSuggestions(val), 300);
                 } else {
@@ -436,160 +427,201 @@ export default function Home() {
                 }
               }}
               onFocus={() => {
-                if (query.trim().length >= 1) {
-                  setShowSuggestions(true);
-                } else {
-                  setShowTrending(true);
-                }
+                if (query.trim().length >= 1) setShowSuggestions(true);
+                else setShowTrending(true);
               }}
               onBlur={() => setTimeout(() => { setShowSuggestions(false); setShowTrending(false); }, 250)}
-              className="w-full px-4 py-3 border border-gray-100 rounded-xl focus:ring-2 focus:ring-black outline-none text-sm font-medium"
+              className="w-full pl-16 pr-12 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-black/5 focus:bg-white outline-none text-[11px] font-black uppercase tracking-widest transition-all placeholder:text-gray-300"
             />
-            <button onClick={searchProducts} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black text-white rounded-lg hover:bg-gray-800">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <button onClick={searchProducts} className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-black text-white rounded-xl hover:bg-primary hover:text-black transition-all">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </button>
 
-            {/* Search Suggestions Dropdown */}
-            {showSuggestions && (searchSuggestions.products.length > 0 || searchSuggestions.categories.length > 0) && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-2xl mt-2 overflow-hidden z-50">
-                {searchSuggestions.products.length > 0 && (
-                  <div>
-                    <div className="px-4 pt-3 pb-1">
-                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">Products</span>
+            {/* COMMAND CENTER SUGGESTIONS */}
+            {(showSuggestions || showTrending) && (
+              <div className="absolute top-[calc(100%+16px)] left-0 right-0 bg-white border border-gray-100 rounded-[2.5rem] shadow-[0_45px_100px_-20px_rgba(0,0,0,0.18)] overflow-hidden z-[200] animate-in fade-in slide-in-from-top-6 duration-700">
+                <div className="p-8 space-y-10">
+                   {/* Results Group */}
+                   {showSuggestions && (searchSuggestions.products.length > 0 || searchSuggestions.categories.length > 0) ? (
+                     <div className="space-y-8">
+                       {searchSuggestions.categories.length > 0 && (
+                         <div className="space-y-4">
+                           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-300">Fleet Segments</span>
+                           <div className="flex flex-wrap gap-2">
+                             {searchSuggestions.categories.map((cat: any) => (
+                               <button key={cat.id} onClick={() => { setSelectedCategory(cat.name); setQuery(""); setShowSuggestions(false); }} className="px-4 py-2 bg-gray-50 hover:bg-black hover:text-white rounded-full text-[9px] font-black uppercase tracking-widest transition-all">
+                                 {cat.name}
+                               </button>
+                             ))}
+                           </div>
+                         </div>
+                       )}
+                       
+                       {searchSuggestions.products.length > 0 && (
+                         <div className="space-y-4">
+                           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-300">Asset Discovery</span>
+                           <div className="grid grid-cols-1 gap-1">
+                             {searchSuggestions.products.map((p: any) => (
+                               <button key={p.id} onClick={() => router.push(`/product/${p.id}`)} className="w-full p-4 hover:bg-gray-50 rounded-3xl flex items-center gap-5 transition-all group/item">
+                                 <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-50 border border-gray-100 relative shadow-sm">
+                                   <img src={p.image_url} className="w-full h-full object-cover group-hover/item:scale-110 transition-transform duration-700" />
+                                 </div>
+                                 <div className="text-left flex-1">
+                                   <p className="text-[11px] font-black uppercase tracking-[0.1em]">{p.title}</p>
+                                   <div className="flex items-center gap-3 mt-1.5 opacity-40">
+                                      <span className="text-[8px] font-black uppercase">Grade A++</span>
+                                      <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                                      <span className="text-[8px] font-black uppercase">Institutional Listing</span>
+                                   </div>
+                                 </div>
+                               </button>
+                             ))}
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   ) : showTrending ? (
+                    <div className="space-y-8">
+                      <div className="space-y-6">
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-300">Current Trending Protocols</span>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                           {["OFF-WHITE", "CORTEIZ", "ARCHIVE", "SILHOUETTES"].map(t => (
+                             <button key={t} onClick={() => { setQuery(t); searchProducts(); }} className="p-6 bg-gray-50/50 hover:bg-black hover:text-white rounded-[2rem] border border-gray-100 transition-all text-center">
+                                <p className="text-[10px] font-black uppercase tracking-widest">{t}</p>
+                             </button>
+                           ))}
+                        </div>
+                      </div>
+                      
+                      <div className="p-6 bg-primary/5 rounded-[2rem] border border-primary/10 flex items-center justify-between">
+                         <div className="flex items-center gap-4">
+                            <span className="text-xl">💎</span>
+                            <div>
+                               <p className="text-[10px] font-black uppercase tracking-widest">Personalized Scout</p>
+                               <p className="text-[8px] font-bold text-primary uppercase tracking-widest mt-1 italic">V2 Discovery Algorithm Active</p>
+                            </div>
+                         </div>
+                         <button onClick={() => setViewMode('feed')} className="px-6 py-2.5 bg-black text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all">Initialize Feed</button>
+                      </div>
                     </div>
-                    {searchSuggestions.products.map((p: any) => (
-                      <button
-                        key={p.id}
-                        onClick={() => router.push(`/product/${p.id}`)}
-                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-                      >
-                        {p.image_url ? (
-                          <img src={p.image_url} alt={p.title} className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-gray-100" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-sm">👗</div>
-                        )}
-                        <span className="text-sm font-semibold text-gray-800 truncate">{p.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {searchSuggestions.categories.length > 0 && (
-                  <div className={searchSuggestions.products.length > 0 ? "border-t border-gray-50" : ""}>
-                    <div className="px-4 pt-3 pb-1">
-                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">Categories</span>
-                    </div>
-                    {searchSuggestions.categories.map((c: any) => (
-                      <button
-                        key={c.id}
-                        onClick={() => { setSelectedCategory(c.name); setQuery(""); setShowSuggestions(false); }}
-                        className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-                      >
-                        <span className="text-base">📂</span>
-                        <span className="text-sm font-semibold text-gray-700">{c.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Trending Searches — shown when input is empty and box is focused */}
-            {showTrending && !query.trim() && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-2xl mt-2 overflow-hidden z-50">
-                <div className="px-4 pt-3 pb-1">
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">🔥 Trending Searches</span>
+                   ) : (
+                     <div className="py-12 text-center opacity-30">
+                        <p className="text-[10px] font-black uppercase tracking-[0.5em]">No Assets Matching Query</p>
+                     </div>
+                   )}
                 </div>
-                {trendingTags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => { setQuery(tag); setShowTrending(false); setShowSuggestions(false); searchProducts(); }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-                  >
-                    <span className="text-base">🔍</span>
-                    <span className="text-sm font-medium text-gray-700">{tag}</span>
-                  </button>
-                ))}
               </div>
             )}
           </div>
 
-          <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100 hidden md:flex ml-4">
-            {(['grid', 'feed'] as const).map(mode => (
-              <button key={mode} onClick={() => setViewMode(mode)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === mode ? 'bg-black text-white shadow-lg' : 'text-gray-400 hover:text-gray-600'}`}>
-                {mode}
-              </button>
-            ))}
+          <div className="hidden lg:flex items-center gap-6">
+            <div className="flex bg-gray-50 p-1 rounded-2xl border border-gray-100">
+              {(['grid', 'feed'] as const).map(mode => (
+                <button key={mode} onClick={() => setViewMode(mode)} className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all ${viewMode === mode ? 'bg-black text-white shadow-xl scale-105' : 'text-gray-400 hover:text-gray-600'}`}>
+                  {mode}
+                </button>
+              ))}
+            </div>
+            <Link href="/cart" className="w-12 h-12 rounded-2xl border border-gray-100 flex items-center justify-center hover:bg-black hover:text-white transition-all relative">
+               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+            </Link>
           </div>
         </div>
       </header>
       
-      {/* 🎬 God-Tier Luxury Hero Section */}
+      {/* 🏛️ GOD-TIER LUXURY HERO */}
       {selectedCategory === "ALL" && !query && viewMode === 'grid' && (
-      <section className="relative w-full h-[85vh] md:h-[90vh] bg-black overflow-hidden flex items-center justify-center -mt-[73px]">
-        {/* Cinematic Backdrop */}
-        <div className="absolute inset-0 opacity-60">
+      <section className="relative w-full h-[90vh] bg-black overflow-hidden flex items-center justify-center -mt-[81px]">
+        {/* Dynamic Multi-Layer Backdrop */}
+        <div className="absolute inset-0">
             <Image 
                 src="https://images.unsplash.com/photo-1445205170230-053b83016050?q=80&w=2671&auto=format&fit=crop" 
                 alt="Luxury Fashion Campaign"
                 fill
                 priority
-                className="object-cover object-top scale-105 animate-slow-zoom"
+                className="object-cover object-top opacity-50 contrast-125 scale-105 animate-slow-zoom"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,black_100%)]" />
         </div>
 
         {/* Hero Content */}
-        <div className="relative z-10 text-center px-4 max-w-5xl mx-auto flex flex-col items-center mt-20">
-            <span className="text-[10px] md:text-xs text-white/70 uppercase tracking-[0.5em] font-bold mb-6 block animate-fade-in" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
-                The Institutional Archive
-            </span>
-            <h1 className="text-6xl md:text-8xl lg:text-[10rem] font-black uppercase text-white tracking-tighter italic leading-[0.8] mb-8 animate-slide-up mix-blend-overlay">
-                HSTNLX
-            </h1>
-            <p className="max-w-md mx-auto text-xs md:text-sm text-white/60 uppercase tracking-widest leading-relaxed mb-12 animate-fade-in" style={{ animationDelay: '400ms', animationFillMode: 'both' }}>
-                Curated peer-to-peer acquisition network for high-fidelity garments and exclusive silhouettes.
-            </p>
-            <button 
-                onClick={() => {
-                  document.getElementById('archive-grid')?.scrollIntoView({ behavior: 'smooth' })
-                }}
-                className="luxury-button !bg-white !text-black hover:!bg-black hover:!text-white hover:border hover:border-white transition-all duration-500 !px-12 !py-5 shadow-[0_0_40px_rgba(255,255,255,0.3)] animate-fade-in"
-                style={{ animationDelay: '600ms', animationFillMode: 'both' }}
-            >
-                Initialize Scouting
-            </button>
+        <div className="relative z-10 text-center px-6 max-w-6xl mx-auto space-y-12">
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-8 duration-1000">
+                <div className="inline-flex items-center gap-3 px-4 py-2 bg-white/5 backdrop-blur-md rounded-full border border-white/10">
+                   <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                   <span className="text-[9px] text-white/70 uppercase tracking-[0.4em] font-black">The Institutional Fleet</span>
+                </div>
+                <h1 className="text-7xl md:text-[9rem] lg:text-[13rem] font-black uppercase text-white tracking-tighter italic leading-[0.75] mix-blend-difference">
+                    HSTNLX
+                    <span className="block text-[10px] md:text-xs tracking-[0.8em] mt-6 md:mt-10 font-black not-italic opacity-40">Blockchain Verified Acquisitions</span>
+                </h1>
+            </div>
+            
+            <div className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-20 pt-8 animate-in fade-in duration-1000 delay-500">
+                <div className="flex flex-col items-center gap-2">
+                   <span className="text-3xl font-black italic tracking-tighter text-white">12.5K+</span>
+                   <span className="text-[7px] text-white/40 uppercase tracking-[0.3em] font-black">Assets Secured</span>
+                </div>
+                <button 
+                  onClick={() => document.getElementById('archive-grid')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="group relative px-14 py-6 bg-white text-black rounded-[2.5rem] font-black uppercase tracking-[0.4em] text-[10px] overflow-hidden hover:scale-110 transition-transform duration-500"
+                >
+                    <span className="relative z-10 group-hover:tracking-[0.6em] transition-all">Initialize Scouting</span>
+                    <div className="absolute inset-0 bg-primary opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                </button>
+                <div className="flex flex-col items-center gap-2">
+                   <span className="text-3xl font-black italic tracking-tighter text-white">0.05s</span>
+                   <span className="text-[7px] text-white/40 uppercase tracking-[0.3em] font-black">Trade Latency</span>
+                </div>
+            </div>
         </div>
-        
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-white/50 flex flex-col items-center animate-bounce duration-1000">
-            <span className="text-[8px] uppercase tracking-widest font-black mb-2">Descend</span>
-            <div className="w-px h-8 bg-gradient-to-b from-white/50 to-transparent" />
+
+        {/* Cinematic Scroll Indicator */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 opacity-30 hover:opacity-100 transition-opacity">
+            <div className="w-[1px] h-16 bg-gradient-to-t from-white to-transparent" />
+            <span className="text-[7px] uppercase tracking-[0.5em] font-black text-white">Descend Archive</span>
         </div>
       </section>
       )}
 
-      <main id="archive-grid" className="max-w-7xl mx-auto px-4 py-8 relative z-20 bg-white">
-        
-        {/* Horizontal Category Pills for easy access (Mobile & Desktop) */}
-        <div className="flex overflow-x-auto gap-3 pb-6 mb-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          {categories.map((cat) => (
+      <main id="archive-grid" className="max-w-7xl mx-auto px-6 py-12 relative z-20 bg-white rounded-t-[4rem] -mt-16">
+        {/* 🏷️ CATEGORY PROTOCOL */}
+        <div className="flex overflow-x-auto gap-4 pb-12 items-center no-scrollbar group">
+          <div className="flex items-center gap-2 px-4 py-3 bg-black text-white rounded-3xl shrink-0">
+             <span className="text-xs font-black italic">FLEET:</span>
+          </div>
+          {categories.slice(0, 8).map((cat) => (
             <button
               key={cat}
-              onClick={() => {
-                setSelectedCategory(cat);
-                setQuery("");
-                setShowSuggestions(false);
-                if (viewMode === 'feed') setViewMode('grid');
-              }}
-              className={`whitespace-nowrap px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all bg-white border shrink-0 ${
+              onClick={() => { setSelectedCategory(cat); setQuery(""); if (viewMode === 'feed') setViewMode('grid'); }}
+              className={`whitespace-nowrap px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all border-2 shrink-0 ${
                 selectedCategory === cat
-                  ? 'border-black bg-black text-white shadow-lg'
-                  : 'border-gray-200 text-gray-500 hover:border-black hover:text-black hover:bg-gray-50'
+                  ? 'border-black bg-black text-white shadow-2xl scale-105'
+                  : 'border-gray-50 text-gray-400 hover:border-black hover:text-black hover:bg-gray-50'
               }`}
             >
               {cat}
             </button>
           ))}
+        </div>
+
+        {/* 🌐 GLOBAL TRUST PROTOCOL */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
+           {[
+             { label: 'Blockchain ID', icon: '📝', desc: 'Secure Ledger' },
+             { label: 'Asset Verified', icon: '💎', desc: 'Premium Specs' },
+             { label: 'Direct Trade', icon: '⚡', desc: 'P2P Network' },
+             { label: 'Logistics Pro', icon: '📦', desc: 'Global Fleet' }
+           ].map((item, i) => (
+             <div key={i} className="p-6 bg-gray-50/50 rounded-[2rem] border border-gray-100 flex flex-col gap-3 group hover:bg-black transition-all duration-700">
+                <span className="text-xl opacity-40 group-hover:opacity-100 transition-opacity">{item.icon}</span>
+                <div>
+                   <p className="text-[10px] font-black uppercase tracking-widest group-hover:text-white transition-colors">{item.label}</p>
+                   <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-1">{item.desc}</p>
+                </div>
+             </div>
+           ))}
         </div>
 
         {viewMode === 'feed' ? (

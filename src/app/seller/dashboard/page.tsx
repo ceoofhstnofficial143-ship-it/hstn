@@ -34,7 +34,6 @@ export default function SellerDashboard() {
 
             if (!kybData || !kybData.is_verified) {
                 // If they haven't onboarded OR are pending verification, force onboarding
-                const { push } = require('next/navigation').useRouter() // Fallback if router not available in scope
                 window.location.href = "/seller/onboarding"
                 return
             }

@@ -97,8 +97,18 @@ BEGIN
       v_p_qty := COALESCE((v_item.value->>'qty')::INTEGER, 1);
       v_p_size := v_item.value->>'size';
 
-      SELECT price INTO v_db_price FROM public.products WHERE id = v_p_id FOR SHARE;
-      IF v_db_price IS NULL THEN RAISE EXCEPTION 'Asset % not found.', v_p_id; END IF;
+      -- 🛡️ SECURITY: Fetch price from source. Priority: Variant Price > Base Price
+      -- First, check if there's a specific size-based price
+      SELECT price INTO v_db_price 
+      FROM public.product_variants 
+      WHERE product_id = v_p_id AND size = v_p_size;
+
+      -- Fallback to base product price if no variant price is defined
+      IF v_db_price IS NULL THEN
+        SELECT price INTO v_db_price FROM public.products WHERE id = v_p_id FOR SHARE;
+      END IF;
+
+      IF v_db_price IS NULL THEN RAISE EXCEPTION 'Asset % not found in archive.', v_p_id; END IF;
 
       v_order_total := v_order_total + (v_db_price * v_p_qty);
 

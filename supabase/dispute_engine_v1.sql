@@ -101,7 +101,7 @@ BEGIN
     ELSIF p_action = 'refund' THEN
         -- RETURN TO BUYER
         UPDATE public.orders SET is_disputed = false, status = 'refunded' WHERE id = v_order_id;
-        UPDATE public.seller_payouts SET is_disputed = false, status = 'refunded' WHERE order_id = v_order_id;
+        UPDATE public.seller_payouts SET is_disputed = false, status = 'reversed' WHERE order_id = v_order_id;
         UPDATE public.order_disputes SET status = 'refunded', resolved_at = now() WHERE id = p_dispute_id;
     
     ELSE

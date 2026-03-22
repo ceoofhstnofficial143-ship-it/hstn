@@ -79,8 +79,11 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
     }, [page, loadingMore, hasMore, pageSize, userStyles])
 
     useEffect(() => {
+        setProducts([])
+        setPage(0)
+        setHasMore(true)
         loadMoreProducts()
-    }, [])
+    }, [userStyles])
 
     useEffect(() => {
         const handleScroll = () => {

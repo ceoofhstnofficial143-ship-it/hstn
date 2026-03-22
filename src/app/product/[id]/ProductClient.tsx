@@ -14,19 +14,21 @@ import { supabase } from "@/lib/supabase"
 const Breadcrumbs = ({ category, title }: { category: string; title: string }) => {
   const router = useRouter()
   return (
-    <nav className="flex items-center gap-4 mb-8 px-1 animate-in fade-in slide-in-from-top-4 duration-700">
+    <nav className="flex items-center gap-6 mb-12 animate-in fade-in slide-in-from-top-4 duration-1000">
       <button
         onClick={() => router.back()}
-        className="md:hidden w-8 h-8 flex items-center justify-center bg-gray-50 rounded-full text-black"
+        className="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 hover:text-black transition-colors"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+        <span className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center group-hover:border-black transition-colors">←</span>
+        Back
       </button>
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 overflow-hidden whitespace-nowrap">
-        <Link href="/" className="hover:text-black transition-colors underline underline-offset-4">Home</Link>
-        <span className="text-gray-200">/</span>
-        <Link href={`/category/${category?.toLowerCase()}`} className="hover:text-black transition-colors">{category || "Shop"}</Link>
-        <span className="text-gray-200">/</span>
-        <span className="text-black truncate font-black italic">{title}</span>
+      <div className="h-4 w-px bg-gray-100" />
+      <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-[0.4em] text-gray-300">
+        <Link href="/" className="hover:text-black transition-colors">Archive</Link>
+        <span>/</span>
+        <Link href={`/?category=${category?.toLowerCase()}`} className="text-gray-400 hover:text-black transition-colors">{category || "Fleet"}</Link>
+        <span>/</span>
+        <span className="text-black italic">{title}</span>
       </div>
     </nav>
   )
@@ -60,15 +62,38 @@ const ImageGallery = ({ media, activeMedia, setActiveMedia, title, stock }: { me
     setZoomStyle({ ...zoomStyle, display: 'none' })
   }
 
+  // 🔄 Sync mobile scroll when activeMedia changes (e.g., thumbnail clicked)
+  useEffect(() => {
+    if (window.innerWidth < 1024 && scrollRef.current) {
+        const index = media.findIndex(m => m.url === activeMedia.url);
+        if (index !== -1) {
+            const currentScrollIndex = Math.round(scrollRef.current.scrollLeft / scrollRef.current.offsetWidth);
+            if (index !== currentScrollIndex) {
+                scrollRef.current.scrollTo({
+                    left: index * scrollRef.current.offsetWidth,
+                    behavior: 'smooth'
+                });
+            }
+        }
+    }
+  }, [activeMedia]);
+
+  const scrollTimeout = useRef<NodeJS.Timeout | null>(null)
+  
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (window.innerWidth >= 1024) return
     const scrollLeft = e.currentTarget.scrollLeft
     const width = e.currentTarget.offsetWidth
     const index = Math.round(scrollLeft / width)
-    if (media[index] && media[index].url !== activeMedia.url) {
-      setActiveMedia(media[index])
-      if (media[index].type === 'video') setIsVideoPlaying(true)
-    }
+    
+    if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
+    
+    scrollTimeout.current = setTimeout(() => {
+        if (media[index] && media[index].url !== activeMedia.url) {
+            setActiveMedia(media[index])
+            if (media[index].type === 'video') setIsVideoPlaying(true)
+        }
+    }, 50)
   }
 
   const handleVideoClick = () => {
@@ -141,9 +166,9 @@ const ImageGallery = ({ media, activeMedia, setActiveMedia, title, stock }: { me
       </div>
 
       <div className="flex-1 relative">
-        <div ref={scrollRef} onScroll={handleScroll} className="lg:hidden flex overflow-x-auto snap-x snap-mandatory scrollbar-none aspect-[3/4] rounded-[2rem] shadow-xl">
+        <div ref={scrollRef} onScroll={handleScroll} className="lg:hidden flex overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-none aspect-[3/4] rounded-[2rem] shadow-xl">
           {media.map((item, idx) => (
-            <div key={idx} className="flex-shrink-0 w-full h-full snap-start relative">
+            <div key={idx} className="flex-shrink-0 w-full h-full snap-start snap-always relative">
               {item.type === 'video' ? (
                 <video
                   ref={idx === media.findIndex(m => m.url === activeMedia.url) ? videoRef : undefined}
@@ -432,69 +457,264 @@ export default function ProductClient() {
   if (loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center p-8 animate-pulse">
       <div className="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-12 gap-12">
-        <div className="lg:col-span-7 aspect-[3/4] bg-gray-100 rounded-[3rem]" />
-        <div className="lg:col-span-5 space-y-8 my-auto"><div className="h-20 bg-gray-100 rounded-2xl w-3/4" /><div className="h-10 bg-gray-100 rounded-xl w-1/4" /><div className="h-32 bg-gray-100 rounded-2xl" /></div>
+        <div className="lg:col-span-7 aspect-[3/4] bg-gray-50 rounded-[3rem]" />
+        <div className="lg:col-span-12 xl:col-span-5 space-y-10 my-auto">
+          <div className="h-24 bg-gray-50 rounded-3xl w-full" />
+          <div className="h-12 bg-gray-50 rounded-2xl w-1/3" />
+          <div className="space-y-4 pt-8 border-t border-gray-100">
+            <div className="h-20 bg-gray-50 rounded-3xl" />
+            <div className="h-20 bg-gray-900 rounded-3xl" />
+          </div>
+        </div>
       </div>
     </div>
   )
 
-  if (!product) return <div className="min-h-screen flex items-center justify-center font-black italic uppercase">Asset Missing / 404</div>
+  if (!product) return <div className="min-h-screen flex items-center justify-center font-black italic uppercase text-gray-400">Archive Entry Missing / 404</div>
 
   const media: MediaItem[] = [
     { url: product.image_url, type: 'image', label: 'hero' },
-    ...(product.additional_images || []).slice(0, 5).map((url: string, idx: number) => ({ url, type: 'image' as const, label: ['front', 'back', 'fabric', 'model', 'lifestyle'][idx] })),
-    ...(product.video_url ? [{ url: product.video_url, type: 'video' as const, label: 'video' }] : [])
+    ...(product.additional_images || []).map((url: string, idx: number) => ({ 
+      url, 
+      type: 'image' as const, 
+      label: ['front', 'back', 'fabric', 'model', 'lifestyle'][idx % 5] 
+    })),
+    ...(product.video_url ? [{ url: product.video_url, type: 'video' as const, label: 'motion' }] : [])
   ]
 
   return (
-    <div className="min-h-screen bg-white text-black py-16">
-      <div className="max-w-7xl mx-auto px-4">
-        <Breadcrumbs category={product.category} title={product.title} />
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 xl:gap-24">
-          <div className="lg:col-span-12 xl:col-span-7">
-            {activeMedia && <ImageGallery media={media} activeMedia={activeMedia} setActiveMedia={setActiveMedia} title={product.title} stock={product.stock} />}
+    <div className="min-h-screen bg-white text-black selection:bg-primary selection:text-black">
+      <div className="max-w-7xl mx-auto px-6 py-12 lg:py-20">
+        <div className="flex flex-col lg:flex-row gap-16 xl:gap-24 items-start">
+          
+          {/* 🖼️ GALLERY PROTOCOL (Left) */}
+          <div className="w-full lg:w-[60%] space-y-8">
+            <Breadcrumbs category={product.category} title={product.title} />
+            <div className="relative group">
+              {activeMedia && (
+                <ImageGallery 
+                  media={media} 
+                  activeMedia={activeMedia} 
+                  setActiveMedia={setActiveMedia} 
+                  title={product.title} 
+                  stock={product.stock} 
+                />
+              )}
+              {/* Media Progress Indicator */}
+              <div className="pointer-events-none sticky bottom-10 left-0 right-0 z-20 flex justify-center lg:hidden">
+                <div className="flex gap-1.5 px-4 py-2 bg-black/80 backdrop-blur-md rounded-full ring-1 ring-white/20">
+                  {media.map((_, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`h-1 rounded-full transition-all duration-500 ${
+                        media.findIndex(m => m.url === activeMedia?.url) === idx 
+                          ? 'w-6 bg-primary' 
+                          : 'w-1.5 bg-white/30'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* Extended Visual Narrative (Visible on scroll) */}
+            <div className="hidden lg:grid grid-cols-2 gap-8 pt-20">
+               {media.slice(1, 3).map((m, i) => (
+                 <div key={i} className="relative aspect-[3/4] rounded-[2.5rem] overflow-hidden group shadow-lg hover:shadow-2xl transition-all duration-700">
+                    <Image src={m.url} fill className="object-cover transition-transform duration-1000 group-hover:scale-110" alt="Detail" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                 </div>
+               ))}
+            </div>
           </div>
-          <div className="lg:col-span-12 xl:col-span-5 space-y-10">
-             <div className="space-y-6">
-               <h1 className="text-5xl lg:text-7xl font-black italic uppercase tracking-tighter leading-none">{product.title}</h1>
-               <div className="text-6xl font-black italic tracking-tighter shadow-primary/20 drop-shadow-sm">₹{product.price?.toLocaleString()}</div>
-               <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-[11px] font-black uppercase tracking-widest text-gray-600">{viewersCount} active viewers locking on this drop</span>
-               </div>
-             </div>
 
-             <div className="space-y-8 py-8 border-y border-gray-100">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center"><h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-gray-400 italic">Select Sizing Protocol</h3><button onClick={() => setShowSizeGuide(true)} className="text-[10px] font-black uppercase tracking-widest underline underline-offset-4">Matrix Guide</button></div>
-                  <div className="grid grid-cols-5 gap-3">
-                    {["XS", "S", "M", "L", "XL"].map(s => (
-                      <button key={s} onClick={() => setSelectedSize(s)} className={`h-16 rounded-2xl font-black transition-all border-2 ${selectedSize === s ? 'bg-black text-white border-black shadow-xl scale-105' : 'bg-white border-gray-100 hover:border-black'}`}>{s}</button>
-                    ))}
+          {/* 💰 ACQUISITION PROTOCOL (Right - Sticky) */}
+          <div className="w-full lg:w-[40%] sticky top-32 space-y-12">
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-black uppercase tracking-[0.4em] px-3 py-1 bg-gray-50 text-gray-400 rounded-full border border-gray-100">
+                    {product.category || 'Limited Edition'}
+                  </span>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 rounded-full border border-green-100">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-green-600">Active Viewing</span>
                   </div>
                 </div>
-
-                <div className="flex gap-4">
-                  <button onClick={buyNow} disabled={!selectedSize} className={`flex-1 h-20 rounded-2xl font-black uppercase tracking-[0.3em] text-xs transition-all duration-500 shadow-2xl ${selectedSize ? 'bg-black text-white hover:bg-primary hover:text-black' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>Unlock Acquisition</button>
-                  <button onClick={addToWishlist} className={`w-20 h-20 rounded-2xl transition-all border-2 flex items-center justify-center ${inWishlist ? 'bg-red-500 text-white border-red-500' : 'bg-white border-gray-100 hover:text-red-500'}`}>❤</button>
+                <h1 className="text-5xl lg:text-7xl font-black italic uppercase tracking-tighter leading-[0.85] text-balance">
+                  {product.title}
+                </h1>
+                <div className="flex items-baseline gap-4">
+                  <span className="text-6xl font-black italic tracking-tighter text-primary">₹{product.price?.toLocaleString()}</span>
+                  <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Institutional Grade Assets</span>
                 </div>
-             </div>
+              </div>
 
-             <SellerCard profile={product.profiles} userId={product.user_id} />
+              {/* Viewer Analytics Context */}
+              <div className="p-5 bg-black rounded-[2rem] text-white flex items-center justify-between border-2 border-primary/20 shadow-2xl">
+                 <div>
+                   <p className="text-[9px] font-black uppercase tracking-[0.3em] text-primary mb-1">Stock Trajectory</p>
+                   <p className="text-sm font-bold italic tracking-tight">{product.stock > 10 ? 'Available for Deployment' : 'Critical Shortage Protocol Activel'}</p>
+                 </div>
+                 <div className="text-right">
+                    <p className="text-xl font-black italic tracking-tighter">{viewersCount}</p>
+                    <p className="text-[7px] font-black uppercase tracking-widest text-primary">Live Locks</p>
+                 </div>
+              </div>
 
-             <div className="pt-8">
-                <div className="flex gap-8 border-b border-gray-100 mb-8">{['description', 'protocol'].map(tab => (<button key={tab} onClick={() => setActiveTab(tab)} className={`pb-4 text-[10px] font-black uppercase tracking-widest relative ${activeTab === tab ? 'text-black' : 'text-gray-400 hover:text-black'}`}>{tab}{activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}</button>))}</div>
-                <div className="text-sm font-bold uppercase tracking-tight italic text-gray-700 leading-relaxed min-h-[100px]">{activeTab === 'description' ? product.description : "Institutional grade material composition defined by high-activity deployment durability."}</div>
-             </div>
+              {/* Sizing Matrix */}
+              <div className="space-y-6 pt-8 border-t border-gray-100">
+                <div className="flex justify-between items-center px-1">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 flex items-center gap-2">
+                    Size Selection <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  </h3>
+                  <button onClick={() => setShowSizeGuide(true)} className="text-[10px] font-black uppercase tracking-widest underline underline-offset-4 hover:text-primary transition-colors">Dimension Grid</button>
+                </div>
+                
+                {/* Show available sizes from variants or fallback to hardcoded */}
+                {variants.length > 0 ? (
+                  <div className="grid grid-cols-5 gap-3">
+                    {variants.map(v => (
+                      <button 
+                        key={v.size} 
+                        onClick={() => setSelectedSize(v.size)} 
+                        className={`group relative h-16 rounded-2xl font-black transition-all duration-500 border-2 ${
+                          selectedSize === v.size 
+                            ? 'bg-black text-white border-black shadow-[0_20px_40px_rgba(0,0,0,0.15)] scale-105' 
+                            : v.stock > 0 
+                              ? 'bg-white border-gray-100 hover:border-black text-gray-400 hover:text-black'
+                              : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed line-through'
+                        }`}
+                        disabled={v.stock <= 0}
+                      >
+                        <span className="relative z-10">{v.size}</span>
+                        {selectedSize === v.size && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full ring-4 ring-white" />
+                        )}
+                        {v.stock > 0 && v.stock <= 3 && (
+                          <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[7px] font-bold text-orange-500">LOW</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-5 gap-3">
+                    {["XS", "S", "M", "L", "XL"].map(s => (
+                      <button 
+                        key={s} 
+                        onClick={() => setSelectedSize(s)} 
+                        className={`group relative h-16 rounded-2xl font-black transition-all duration-500 border-2 ${
+                          selectedSize === s 
+                            ? 'bg-black text-white border-black shadow-[0_20px_40px_rgba(0,0,0,0.15)] scale-105' 
+                            : 'bg-white border-gray-100 hover:border-black text-gray-400 hover:text-black'
+                        }`}
+                      >
+                        <span className="relative z-10">{s}</span>
+                        {selectedSize === s && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full ring-4 ring-white" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-300 text-center italic">
+                  {variants.length > 0 ? `${variants.filter(v => v.stock > 0).length} sizes available` : 'Institutional Cut: Standard True Fit'}
+                </p>
+              </div>
+
+              {/* Execution Actions */}
+              <div className="space-y-4">
+                <button 
+                  onClick={buyNow} 
+                  disabled={!selectedSize} 
+                  className={`group w-full h-24 rounded-[2rem] font-black uppercase tracking-[0.4em] text-sm transition-all duration-700 relative overflow-hidden flex items-center justify-center ${
+                    selectedSize 
+                      ? 'bg-black text-white hover:bg-primary hover:text-black shadow-2xl' 
+                      : 'bg-gray-100 text-gray-300 cursor-not-allowed grayscale'
+                  }`}
+                >
+                  <span className="relative z-10 flex items-center gap-4 group-hover:scale-110 transition-transform">
+                    Initialize Purchase <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                  </span>
+                  <div className="absolute inset-0 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={addToCart} 
+                    className="h-20 rounded-2xl border-2 border-gray-100 font-black uppercase tracking-widest text-[10px] hover:border-black transition-all group"
+                  >
+                    Add to Bag
+                  </button>
+                  <button 
+                    onClick={addToWishlist} 
+                    className={`h-20 rounded-2xl border-2 transition-all flex items-center justify-center text-xl group ${
+                      inWishlist ? 'bg-red-500 border-red-500 text-white' : 'border-gray-100 hover:text-red-500'
+                    }`}
+                  >
+                    {inWishlist ? '❤️' : '♡'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Trust Protocol Badges */}
+              <div className="grid grid-cols-3 gap-6 py-10 border-y border-gray-100">
+                 {[
+                   { label: 'Blockchain ID', icon: '📝' },
+                   { label: 'Asset Verified', icon: '💎' },
+                   { label: 'Logistics Pro', icon: '📦' }
+                 ].map((t, i) => (
+                   <div key={i} className="flex flex-col items-center text-center gap-3">
+                     <span className="text-xl grayscale group-hover:grayscale-0 transition-smooth opacity-40">{t.icon}</span>
+                     <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-400">{t.label}</span>
+                   </div>
+                 ))}
+              </div>
+
+              <SellerCard profile={product.profiles} userId={product.user_id} />
+
+              <div className="space-y-8">
+                <div className="flex gap-10 border-b border-gray-100">
+                  {['description', 'specifications', 'shipping'].map(tab => (
+                    <button 
+                      key={tab} 
+                      onClick={() => setActiveTab(tab)} 
+                      className={`pb-4 text-[10px] font-black uppercase tracking-[0.3em] relative transition-colors ${
+                        activeTab === tab ? 'text-black' : 'text-gray-300 hover:text-black'
+                      }`}
+                    >
+                      {tab}
+                      {activeTab === tab && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black animate-in fade-in slide-in-from-left-2" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div className="min-h-[150px] animate-in fade-in duration-700">
+                  <p className="text-sm font-bold uppercase tracking-tight italic text-gray-700 leading-relaxed text-pretty">
+                    {activeTab === 'description' ? product.description : 
+                     activeTab === 'specifications' ? "Composition: Institutional-grade materials • Assembly: Premium Craftsmanship • Durability: High-Velocity Ready • Care: Professional Clean Protocol." :
+                     "Global Priority Delivery • 24H Despatch Protocol • Secured Transit Insurance Included."
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         <PhotoReviews productId={productId} />
         
         {relatedProducts.length > 0 && (
-          <div className="mt-32 pt-32 border-t border-gray-50">
-            <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-12">Similar Archives</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="mt-40 pt-40 border-t border-gray-100">
+            <div className="flex justify-between items-end mb-16">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Discover More</span>
+                <h2 className="text-5xl font-black italic uppercase tracking-tighter mt-4">Linked Archives</h2>
+              </div>
+              <Link href="/" className="text-xs font-black uppercase tracking-[0.3em] border-b-2 border-black pb-2 hover:text-primary hover:border-primary transition-all">Explore Entire Fleet →</Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-12">
               {relatedProducts.map(p => (<ProductCard key={p.id} product={p} />))}
             </div>
           </div>

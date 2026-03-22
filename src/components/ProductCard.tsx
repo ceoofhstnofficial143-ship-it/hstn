@@ -92,10 +92,10 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
     const handleProductClick = () => {
         console.log('🖱️ Product clicked:', product.id)
         updateProductViews(product.id)
-        trackEvent('product_view', { 
-            product_id: product.id, 
+        trackEvent('product_view', {
+            product_id: product.id,
             seller_id: product.user_id,
-            category: product.category 
+            category: product.category
         })
     }
 
@@ -135,7 +135,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                 <div className="absolute bottom-4 right-4 text-xs text-white opacity-70">
                     Swipe ↑
                 </div>
-                
+
                 {/* Discovery Feed Heart Toggle */}
                 <div className="absolute top-6 right-6 z-20">
                     <button
@@ -158,13 +158,14 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
         const cart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
         const newItem = {
             productId: product.id,
+            seller_id: product.user_id,
             title: product.title,
             price: product.price,
             image: product.image_url,
             size: size,
             qty: 1
         }
-        
+
         // Check if existing
         const existingIdx = cart.findIndex((i: any) => i.productId === product.id && i.size === size)
         if (existingIdx > -1) {
@@ -172,18 +173,18 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
         } else {
             cart.push(newItem)
         }
-        
+
         localStorage.setItem("hstnlx_cart", JSON.stringify(cart))
         window.dispatchEvent(new Event("hstnlx-cart-updated"))
-        
+
         // Track event
-        trackEvent('add_to_cart', { 
-            product_id: product.id, 
+        trackEvent('add_to_cart', {
+            product_id: product.id,
             seller_id: product.user_id,
             size: size,
-            price: product.price 
+            price: product.price
         })
-        
+
         setShowSizes(false)
         alert(`Success: ${product.title} (Size ${size}) added to your vault.`)
     }
@@ -207,7 +208,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                             e.target.src = 'https://images.unsplash.com/photo-1594932224010-74f43a02476b?q=80&w=2000'
                         }}
                     />
-                    
+
                     {/* Secondary Hover Image */}
                     {hasSecondImage && (
                         <Image
@@ -277,7 +278,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                                 </button>
                             ))}
                         </div>
-                        <button 
+                        <button
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowSizes(false); }}
                             className="text-white/40 hover:text-white mt-8 text-[8px] font-black uppercase tracking-widest transition-colors"
                         >
@@ -287,69 +288,59 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                 )}
             </div>
 
-            {/* INFO */}
-            <div className="p-4 flex flex-col flex-1 space-y-2">
-                <div className="flex justify-between items-start gap-2">
-                    <Link href={`/product/${product.id}`} onClick={handleProductClick} className="flex-1">
-                        <h3 className="font-bold text-xs uppercase tracking-tight text-gray-900 line-clamp-2 leading-relaxed group-hover:text-primary transition-colors">
-                            {product.title}
+            {/* INFO - INSTITUTIONAL DATA */}
+            <div className="p-5 flex flex-col flex-1 gap-6">
+                <div className="space-y-3">
+                    <Link href={`/product/${product.id}`} onClick={handleProductClick} className="block group/title">
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 line-clamp-1 group-hover/title:text-black transition-colors">
+                            {product.category || "Archive Fleet"}
                         </h3>
+                        <p className="text-sm font-black italic tracking-tighter text-black mt-1 line-clamp-1">
+                            {product.title}
+                        </p>
                     </Link>
-                    <div className="text-right">
-                        <span className="text-gray-400 text-[8px] uppercase font-black block tracking-widest mb-0.5">Price</span>
-                        <div className="font-black text-sm text-black tabular-nums">
-                            ₹{product.price?.toLocaleString()}
+
+                    <div className="flex items-baseline justify-between pt-2 border-t border-gray-50">
+                        <div className="flex flex-col">
+                            <span className="text-[7px] font-black text-gray-300 uppercase tracking-[0.4em]">Asset Valuation</span>
+                            <span className="text-lg font-black italic tracking-tighter text-primary">₹{product.price?.toLocaleString()}</span>
+                        </div>
+                        <div className="text-right flex flex-col items-end">
+                            <span className="text-[7px] font-black text-gray-300 uppercase tracking-[0.4em]">Grade</span>
+                            <span className="text-[9px] font-black text-black">A++ Tier</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between py-2 border-y border-gray-50">
-                    <div className="flex items-center gap-1.5">
-                        <div className="flex items-center bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-100/50">
-                            <span className="text-[9px]">⭐</span>
-                            <span className="text-[10px] font-black text-yellow-700 ml-1">{mockRating}</span>
-                        </div>
-                        <span className="text-gray-300 text-[8px]">|</span>
-                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{mockSold}+ Sold</span>
-                    </div>
-                    <div className="text-[10px] font-black text-green-600 italic tracking-tighter">
-                        ✓ Authenticated
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between px-3 py-2 bg-gray-50/50 rounded-xl border border-gray-100">
                     <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
-                           <span className="text-[8px] font-bold text-gray-400">?</span>
-                        </div>
-                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">
-                            {product.profiles?.username || product.seller_username || 'Elite Seller'}
-                        </div>
+                        <span className="text-[10px]">⚖️</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">{mockSold}+ Secured</span>
                     </div>
-                    {product.style_tags && product.style_tags.length > 0 && (
-                        <div className="text-[9px] font-black text-primary uppercase tracking-[0.2em]">
-                            #{product.style_tags[0]}
-                        </div>
-                    )}
+                    <div className="h-3 w-px bg-gray-200" />
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                        <span className="text-[8px] font-black uppercase tracking-widest text-green-600">Authenticated</span>
+                    </div>
                 </div>
 
-                <div className="pt-4 mt-auto">
-                    <button 
+                <div className="mt-auto space-y-3">
+                    <button
                         onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
                             setShowSizes(true)
                         }}
-                        className="w-full bg-black text-white text-[10px] font-black uppercase tracking-[0.25em] py-4 rounded-xl hover:bg-primary hover:text-black transition-all duration-500 flex items-center justify-center gap-3 shadow-xl transform active:scale-95"
+                        className="w-full bg-black text-white text-[9px] font-black uppercase tracking-[0.3em] py-4 rounded-xl hover:bg-primary hover:text-black transition-all duration-700 shadow-xl relative group/btn overflow-hidden"
                     >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Initialize Drop
+                        <span className="relative z-10 group-hover/btn:tracking-[0.5em] transition-all duration-700">Initialize Drop</span>
+                        <div className="absolute inset-x-0 bottom-0 h-0 bg-white opacity-10 group-hover/btn:h-full transition-all duration-700" />
                     </button>
-                    <p className="text-[8px] text-center text-gray-400 uppercase tracking-widest mt-2 font-bold">
-                        ⚡ Ships in 24h • Free Returns
-                    </p>
+                    <div className="flex items-center justify-center gap-2 opacity-30">
+                        <div className="h-px flex-1 bg-gray-200" />
+                        <span className="text-[6px] font-black uppercase tracking-[0.5em]">Logistics Confirmed</span>
+                        <div className="h-px flex-1 bg-gray-200" />
+                    </div>
                 </div>
             </div>
         </div>

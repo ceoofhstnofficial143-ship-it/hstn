@@ -22,6 +22,10 @@ export default function WishlistPage() {
 
     useEffect(() => {
         fetchData()
+        
+        const handler = () => fetchData()
+        window.addEventListener("hstnlx-wishlist-updated", handler)
+        return () => window.removeEventListener("hstnlx-wishlist-updated", handler)
     }, [])
 
     const fetchData = async () => {
@@ -31,30 +35,23 @@ export default function WishlistPage() {
             return
         }
 
-        // Step 1: fetch wishlist rows
-        const { data: wishlistRows, error: wishlistErr } = await supabase
+        // Optimized single-query acquisition
+        const { data: merged, error: wishlistErr } = await supabase
             .from("wishlist")
-            .select("id, product_id, collection_id, created_at")
+            .select(`
+                id, 
+                product_id, 
+                collection_id, 
+                created_at,
+                products (id, title, price, image_url, category)
+            `)
             .eq("user_id", session.user.id)
 
-        if (wishlistErr || !wishlistRows || wishlistRows.length === 0) {
+        if (wishlistErr || !merged) {
             setLoading(false)
             setItems([])
             return
         }
-
-        // Step 2: fetch the actual product details
-        const productIds = wishlistRows.map((r: any) => r.product_id).filter(Boolean)
-        const { data: productRows } = await supabase
-            .from("products")
-            .select("id, title, price, image_url, category")
-            .in("id", productIds)
-
-        // Step 3: merge — attach products onto wishlist rows
-        const merged = wishlistRows.map((row: any) => ({
-            ...row,
-            products: productRows?.find((p: any) => p.id === row.product_id) ?? null
-        }))
 
         setItems(merged)
 

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/app/product/[id]/components/Navbar";
@@ -62,11 +63,12 @@ export default function RootLayout({
         <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
         
         {/* Google Analytics */}
-        <script
+        <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID}`}
           strategy="afterInteractive"
         />
-        <script
+        <Script
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               window.dataLayer = window.dataLayer || [];
@@ -79,33 +81,12 @@ export default function RootLayout({
           }}
         />
         
-        {/* Supabase Global Access Node */}
+        {/* Supabase Global Access Node - Simplified to ensure consistent client-side context */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              window.supabase = ${JSON.stringify({ available: true })};
-              console.log('🔧 Supabase ready: Script loaded');
-              
-              // Make trackEvent globally available for debugging
-              window.trackEvent = async function(eventType, metadata = {}) {
-                try {
-                  const { data: { user } } = await window.supabase.auth.getUser();
-                  console.log('📊 EVENT:', eventType, metadata);
-                  
-                  const { error } = await window.supabase.from('marketplace_events').insert({
-                    event_type: eventType,
-                    user_id: user?.id || null,
-                    metadata: metadata,
-                    created_at: new Date().toISOString()
-                  });
-                  
-                  if (error) {
-                    console.error('❌ Tracking DB error:', error);
-                  }
-                } catch (err) {
-                  console.error('❌ Tracking failed:', err);
-                }
-              };
+              console.log('🔧 HSTNLX Protocol: Environment Synchronized');
+              window.hstnlx_version = '2.0.0-PROD';
             `,
           }}
         />

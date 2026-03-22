@@ -18,14 +18,15 @@ const nextConfig = {
   }
 };
 
-// Sentry webpack configuration
-const sentryWebpackPluginOptions = {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  silent: true,
+module.exports = withSentryConfig(nextConfig, {
+  org: "hstnlx",
+  project: "javascript-nextjs",
+  silent: !process.env.CI,
   widenClientFileUpload: true,
-  hideSourceMaps: true,
-  disableLogger: true,
-};
-
-module.exports = withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+  webpack: {
+    automaticVercelMonitors: true,
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+});

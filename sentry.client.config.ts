@@ -2,10 +2,10 @@ import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  
+
   // Set tracesSampleRate to 1.0 for production monitoring
   tracesSampleRate: 1.0,
-  
+
   // Set profilesSampleRate to 1.0 for profiling
   profilesSampleRate: 1.0,
 
@@ -21,11 +21,7 @@ Sentry.init({
   // Replay configuration
   replaysOnErrorSampleRate: 1.0,
   replaysSessionSampleRate: 0.1,
-  
-  integrations: [
-    Sentry.replayIntegration({
-      maskAllText: false,
-      maskAllInputs: true,
-    }),
-  ],
+
+  // Send default PII
+  sendDefaultPii: true,
 });

@@ -28,6 +28,9 @@ export default function UploadPage() {
   const [modelHeight, setModelHeight] = useState("")
   const [modelWeight, setModelWeight] = useState("")
   const [modelSize, setModelSize] = useState("")
+  
+  // Available sizes with stock
+  const [availableSizes, setAvailableSizes] = useState<{size: string; stock: number}[]>([])
 
   const FIT_TYPES = [
     { label: "True to Size", value: "true_to_size" },
@@ -444,19 +447,38 @@ export default function UploadPage() {
     if (error) {
       alert(error.message)
     } else if (newProduct) {
-      // Synchronize with product_variants table for the size filter
-      const { error: variantError } = await supabase
-        .from("product_variants")
-        .insert([{
+      // Synchronize with product_variants table - Insert all available sizes
+      if (availableSizes.length > 0) {
+        const variantInserts = availableSizes.map(s => ({
           product_id: newProduct.id,
-          size: modelSize || "S", // Default to S if not set
-          stock: stock,
+          size: s.size,
+          stock: s.stock,
           price: Number(price),
           color: "STANDARD"
-        }])
+        }))
+        
+        const { error: variantError } = await supabase
+          .from("product_variants")
+          .insert(variantInserts)
 
-      if (variantError) {
-        console.error("Variant Sync Protocol Failed:", variantError.message)
+        if (variantError) {
+          console.error("Variant Sync Protocol Failed:", variantError.message)
+        }
+      } else {
+        // Fallback: Create default variant with model size or S
+        const { error: variantError } = await supabase
+          .from("product_variants")
+          .insert([{
+            product_id: newProduct.id,
+            size: modelSize || "S",
+            stock: stock,
+            price: Number(price),
+            color: "STANDARD"
+          }])
+
+        if (variantError) {
+          console.error("Variant Sync Protocol Failed:", variantError.message)
+        }
       }
 
       alert("Authenticated Listing Published Successfully 🏛️")
@@ -761,6 +783,55 @@ export default function UploadPage() {
                         </div>
                       </div>
                       <p className="text-[8px] text-muted uppercase tracking-widest leading-relaxed">Example: Model is 165cm wearing Size S.</p>
+                      
+                      {/* Available Sizes Selection */}
+                      <div className="space-y-4 pt-6 border-t border-border mt-6">
+                        <label className="text-[10px] uppercase tracking-widest font-bold text-muted block">Available Sizes & Stock</label>
+                        <p className="text-[8px] text-muted uppercase tracking-widest">Click sizes you have and enter stock quantity</p>
+                        <div className="space-y-3">
+                          {["XS", "S", "M", "L", "XL", "XXL"].map((size) => {
+                            const existing = availableSizes.find(s => s.size === size)
+                            return (
+                              <div key={size} className="flex items-center gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (existing) {
+                                      setAvailableSizes(availableSizes.filter(s => s.size !== size))
+                                    } else {
+                                      setAvailableSizes([...availableSizes, { size, stock: 1 }])
+                                    }
+                                  }}
+                                  className={`w-16 py-2 rounded-lg border text-[10px] font-bold uppercase transition-smooth ${
+                                    existing 
+                                      ? 'bg-primary border-primary text-black' 
+                                      : 'border-border text-muted hover:border-primary/40'
+                                  }`}
+                                >
+                                  {size}
+                                </button>
+                                {existing && (
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <span className="text-[9px] uppercase tracking-widest text-muted">Stock:</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={existing.stock}
+                                      onChange={(e) => {
+                                        const newStock = parseInt(e.target.value) || 1
+                                        setAvailableSizes(availableSizes.map(s => 
+                                          s.size === size ? { ...s, stock: newStock } : s
+                                        ))
+                                      }}
+                                      className="w-20 bg-accent/20 border-none rounded-lg px-3 py-2 text-[11px] font-bold text-center outline-none focus:ring-1 ring-primary"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

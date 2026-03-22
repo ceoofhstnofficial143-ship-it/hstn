@@ -23,7 +23,48 @@ const getRazorpayClient = async () => {
 
 export async function POST(req: Request) {
   try {
-    const { amount, cart, shipping } = await req.json();
+    const { cart, shipping } = await req.json();
+
+    // 🕵️ 0. PRICE RE-VALIDATION (SECURITY PROTOCOL)
+    // NEVER trust the client-side price. Fetch from source.
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    let serverAmount = 0;
+    const productIds = cart.map((i: any) => i.productId);
+    
+    // Fetch base prices
+    const { data: dbProducts } = await supabaseAdmin
+        .from("products")
+        .select("id, price, user_id")
+        .in("id", productIds);
+
+    // Fetch variant prices (if any)
+    const { data: dbVariants } = await supabaseAdmin
+        .from("product_variants")
+        .select("product_id, size, price")
+        .in("product_id", productIds);
+
+    const verifiedCart = []; // Initialize verifiedCart
+    for (const item of cart) {
+        const dbProduct = dbProducts?.find(p => p.id === item.productId);
+        if (!dbProduct) throw new Error(`Asset ${item.productId} status: Terminated/Missing.`);
+        
+        // Priority: Variant Price > Base Price
+        const dbVariant = dbVariants?.find(v => v.product_id === item.productId && v.size === item.size);
+        const unitPrice = dbVariant?.price || dbProduct.price;
+        
+        serverAmount += unitPrice * (item.qty || 1);
+
+        // 🛡️ RE-SNAPSHOT FOR SESSION INTEGRITY
+        verifiedCart.push({
+            ...item,
+            price: unitPrice,
+            seller_id: dbProduct.user_id // Ensure correct seller gets paid
+        });
+    }
 
     const mode = process.env.NEXT_PUBLIC_PAYMENT_MODE || "mock";
     
@@ -57,10 +98,9 @@ export async function POST(req: Request) {
 
     // 🕵️ 1. CONCURRENCY SHIELD (Lock)
     // Prevents double-order clicks from creating dual Razorpay IDs for same session
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // 🕵️ 1. CONCURRENCY SHIELD (Lock)
+    // Prevents double-order clicks from creating dual Razorpay IDs for same session
+    // supabaseAdmin already declared above
 
     const { data: lockAcquired } = await supabaseAdmin.rpc("acquire_checkout_lock", {
         p_user_id: user.id,
@@ -73,18 +113,22 @@ export async function POST(req: Request) {
 
     // 🕵️ 2. MOCK MODE (Bypass Razorpay but save session)
     if (mode === "mock") {
-      console.log(`[MOCK MODE] Simulation Order Creation: ₹${amount}`);
-      await supabaseAdmin.from("checkout_sessions").insert({
+      const mockOrderId = "mock_order_" + Date.now();
+      console.log(`[MOCK MODE] Simulation Order Creation: ₹${serverAmount}`);
+      
+      const { error: insertError } = await supabaseAdmin.from("checkout_sessions").insert({
         user_id: user.id,
-        razorpay_order_id: "mock_order_" + Date.now(),
-        cart: cart,
+        razorpay_order_id: mockOrderId,
+        cart: verifiedCart, // 🛡️ VERIFIED
         shipping: shipping,
         status: 'pending'
       });
       
+      if (insertError) throw new Error(`[MOCK] Session Storage Failure: ${insertError.message}`);
+
       return NextResponse.json({
-        id: "mock_order_" + Date.now(),
-        amount: Math.round(amount * 100),
+        id: mockOrderId,
+        amount: Math.round(serverAmount * 100),
         currency: "INR",
         mock: true
       });
@@ -99,7 +143,7 @@ export async function POST(req: Request) {
         .from("checkout_sessions")
         .insert({
             user_id: user.id,
-            cart: cart,
+            cart: verifiedCart, // 🕵️ SOURCE-OF-TRUTH SNAPSHOT
             shipping: shipping,
             status: 'pending'
         })
@@ -109,7 +153,7 @@ export async function POST(req: Request) {
     if (sessionError) throw new Error(`Session Protocol Initialization Failure: ${sessionError.message}`);
 
     const razorOrder = await razorpay.orders.create({
-      amount: Math.round(amount * 100),
+      amount: Math.round(serverAmount * 100),
       currency: "INR",
       receipt: `hstnlx_${session.id}`, // Link to our internal session ID
       notes: {
@@ -119,11 +163,16 @@ export async function POST(req: Request) {
       }
     }) as any;
 
-    // Link Razorpay ID back to session
-    await supabaseAdmin
+    // 🔐 3.5 RECONSTRUCT SESSION LINK
+    const { error: updateError } = await supabaseAdmin
         .from("checkout_sessions")
         .update({ razorpay_order_id: razorOrder.id })
         .eq("id", session.id);
+    
+    if (updateError) {
+       console.error("Session protocol reconstruction failed:", updateError);
+       throw new Error(`Protocol Reconstruction Failure: ${updateError.message}`);
+    }
 
     // 🕵️ 4. LOG SUCCESS
     await supabaseAdmin.from("system_events").insert({
@@ -132,7 +181,7 @@ export async function POST(req: Request) {
         status: "success",
         user_id: user.id,
         reference_id: razorOrder.id,
-        metadata: { amount, session_id: session.id }
+        metadata: { amount: serverAmount, session_id: session.id }
     });
 
     return NextResponse.json(razorOrder);

@@ -15,15 +15,19 @@
   -- ENABLE RLS ON EXISTING TABLES ONLY
   -- ==============================================================================
 
-  -- Core marketplace tables (adjust based on what exists in your database)
-  ALTER TABLE products ENABLE ROW LEVEL SECURITY;
-  ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-
-  -- Optional tables - uncomment if they exist:
-  -- ALTER TABLE purchase_requests ENABLE ROW LEVEL SECURITY;
-  -- ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-  -- ALTER TABLE trust_scores ENABLE ROW LEVEL SECURITY;
-  -- ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+  -- Core marketplace tables
+  ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.seller_payouts ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.seller_kyb ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.checkout_sessions ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.trust_scores ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.purchase_requests ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.order_events ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public.system_events ENABLE ROW LEVEL SECURITY;
 
   -- ==============================================================================
   -- AUTH.USERS POLICIES (Supabase managed, minimal policies)
@@ -88,10 +92,21 @@
   CREATE POLICY "Authenticated users can insert products" ON products FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
-  -- Sellers can update their own products
+  -- Sellers can update their own products (but NOT approval status)
   CREATE POLICY "Sellers can update own products" ON products FOR UPDATE
   USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (
+    user_id = auth.uid() AND 
+    (
+      -- Either they are an admin
+      EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+      OR 
+      -- Or they are NOT changing the admin_status
+      (
+        SELECT admin_status FROM products WHERE id = products.id
+      ) = admin_status
+    )
+  );
 
   -- Admins can update any product
   CREATE POLICY "Admins can update any product" ON products FOR UPDATE
@@ -241,59 +256,45 @@
   WITH CHECK (true);
 
   -- ==============================================================================
-  -- ORDERS POLICIES
+  -- ORDERS & ORDER ITEMS POLICIES (Hardened for Multi-Vendor v7.0)
   -- ==============================================================================
 
-  -- Buyers can view their own orders
-  CREATE POLICY "Buyers can view own orders" ON orders FOR SELECT
-  USING (auth.uid() = buyer_id);
-
-  -- Sellers can view orders for their products
-  CREATE POLICY "Sellers can view orders for own products" ON orders FOR SELECT
+  -- Participants (Buyer/Seller) or Admin can view orders
+  CREATE POLICY "Participants can view orders" ON public.orders FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM products
-      WHERE products.id = orders.product_id
-      AND products.user_id = auth.uid()
-    )
+    auth.uid() = buyer_id OR 
+    auth.uid() = seller_id OR 
+    is_admin(auth.uid())
   );
 
-  -- Admins can view all orders
-  CREATE POLICY "Admins can view all orders" ON orders FOR SELECT
+  -- Enable RLS on order_items
+  ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+
+  -- Participants or Admin can view order items
+  CREATE POLICY "Participants can view order items" ON public.order_items FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
+      SELECT 1 FROM public.orders 
+      WHERE public.orders.id = public.order_items.order_id 
+      AND (public.orders.buyer_id = auth.uid() OR public.orders.seller_id = auth.uid())
+    ) 
+    OR is_admin(auth.uid())
   );
 
-  -- System can insert orders (via functions)
-  CREATE POLICY "System can insert orders" ON orders FOR INSERT
-  WITH CHECK (true);
-
-  -- Buyers can update their own orders (limited)
-  CREATE POLICY "Buyers can update own orders" ON orders FOR UPDATE
-  USING (auth.uid() = buyer_id)
-  WITH CHECK (auth.uid() = buyer_id);
-
-  -- Sellers can update orders for their products
-  CREATE POLICY "Sellers can update orders for own products" ON orders FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM products
-      WHERE products.id = orders.product_id
-      AND products.user_id = auth.uid()
-    )
+  -- Sellers can update their own orders (logistics updates)
+  CREATE POLICY "Sellers can update own orders" ON public.orders FOR UPDATE
+  USING (auth.uid() = seller_id)
+  WITH CHECK (
+    auth.uid() = seller_id AND
+    -- 🛡️ SECURITY: Prevent changing financial/identity fields
+    (OLD.total_price = total_price) AND
+    (OLD.buyer_id = buyer_id) AND
+    (OLD.payment_id = payment_id)
   );
 
   -- Admins can update any order
-  CREATE POLICY "Admins can update any order" ON orders FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  CREATE POLICY "Admins manage all orders" ON public.orders FOR ALL
+  USING (is_admin(auth.uid()));
 
   -- ==============================================================================
   -- TRUST_SCORES POLICIES
@@ -306,6 +307,38 @@
   -- System can insert/update trust scores (via functions)
   CREATE POLICY "System can manage trust scores" ON trust_scores FOR ALL
   WITH CHECK (true);
+
+  -- Sellers can view their own payouts
+  CREATE POLICY "Sellers view own payouts" ON seller_payouts FOR SELECT
+  USING (seller_id = auth.uid());
+
+  -- Admins can manage all payouts
+  CREATE POLICY "Admins manage all payouts" ON seller_payouts FOR ALL
+  USING (is_admin(auth.uid()));
+
+  -- ==============================================================================
+  -- SELLER_KYB POLICIES
+  -- ==============================================================================
+
+  -- Sellers can manage their own KYB
+  CREATE POLICY "Sellers manage own KYB" ON seller_kyb FOR ALL
+  USING (user_id = auth.uid());
+
+  -- Admins can view all KYB
+  CREATE POLICY "Admins view all KYB" ON seller_kyb FOR SELECT
+  USING (is_admin(auth.uid()));
+
+  -- ==============================================================================
+  -- CHECKOUT_SESSIONS POLICIES
+  -- ==============================================================================
+
+  -- Users can view their own sessions
+  CREATE POLICY "Users view own sessions" ON checkout_sessions FOR SELECT
+  USING (user_id = auth.uid());
+
+  -- Admins can view/manage all sessions
+  CREATE POLICY "Admins manage all sessions" ON checkout_sessions FOR ALL
+  USING (is_admin(auth.uid()));
 
   -- ==============================================================================
   -- ORDER_EVENTS POLICIES
