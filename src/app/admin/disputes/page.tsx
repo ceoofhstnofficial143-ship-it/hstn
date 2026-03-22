@@ -112,30 +112,32 @@ export default function DisputeHubTerminal() {
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div className="w-full lg:w-72 space-y-4">
-                                        <div className="bg-black p-6 rounded-2xl border border-white/5">
-                                            <p className="text-[9px] uppercase tracking-widest text-white/30 font-black mb-4">Escrow Value</p>
-                                            <p className="text-3xl font-black text-primary italic">Reference Protocol</p>
-                                            <p className="text-[10px] text-white/40 font-mono mt-1 uppercase">Order: {d.order_id?.slice(0, 12)}</p>
-                                        </div>
-
-                                        {d.status === 'pending' && (
-                                            <div className="flex flex-col gap-3">
-                                                <button 
-                                                    onClick={() => handleResolve(d, 'release')}
-                                                    className="luxury-button !bg-green-600 !text-white !py-4 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-green-600/10"
-                                                >
-                                                    Release Funds
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleResolve(d, 'refund')}
-                                                    className="luxury-button !bg-white/5 !border-white/10 !text-red-500 hover:!bg-red-500 hover:!text-white !py-4 font-black uppercase tracking-widest text-[10px]"
-                                                >
-                                                    Refund Buyer
-                                                </button>
+                                    {/* Action Panel - Moved below for clear visibility */}
+                                    <div className="w-full mt-8 border-t border-white/10 pt-8 space-y-6">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                            <div>
+                                                <p className="text-[9px] uppercase tracking-widest text-red-500 font-black mb-2">Escrow Value Blocked 🛡️</p>
+                                                <p className="text-3xl font-black text-primary italic">Reference Protocol</p>
+                                                <p className="text-[10px] text-white/40 font-mono mt-1 uppercase">Order: {d.order_id?.slice(0, 12)}</p>
                                             </div>
-                                        )}
+
+                                            {String(d.status).toLowerCase() === 'pending' && (
+                                                <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                                                    <button 
+                                                        onClick={() => handleResolve(d, 'release')}
+                                                        className="luxury-button w-full sm:w-auto !bg-green-600 !text-white !py-5 !px-10 font-black uppercase tracking-widest text-[11px] shadow-lg shadow-green-600/20"
+                                                    >
+                                                        Release Funds
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleResolve(d, 'refund')}
+                                                        className="luxury-button w-full sm:w-auto !bg-white/5 !border-white/10 !text-red-500 hover:!bg-red-500 hover:!text-white !py-5 !px-10 font-black uppercase tracking-widest text-[11px]"
+                                                    >
+                                                        Refund Buyer
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
