@@ -58,7 +58,7 @@ export default function AdminAnalyticsPage() {
       .from('profiles')
       .select('is_admin')
       .eq('id', user.id)
-      .single()
+      .single() as { data: { is_admin: boolean } | null }
 
     if (!profile?.is_admin) {
       router.push('/')
