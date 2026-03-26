@@ -45,7 +45,7 @@ export default function AdminDashboard() {
         const { data: deliveredOrders } = await supabase
             .from("orders")
             .select("total_price")
-            .eq("status", "delivered")
+            .eq("status", "delivered") as { data: { total_price: number }[] | null }
 
         const revenue = deliveredOrders?.reduce((sum, order) => sum + (order.total_price || 0), 0) || 0
 
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
                 total_price,
                 profiles:seller_id(username)
             `)
-            .eq("status", "delivered")
+            .eq("status", "delivered") as { data: { seller_id: string, total_price: number, profiles: { username: string } | null }[] | null }
 
         if (topSellersData) {
             const sellerMap: any = {}
