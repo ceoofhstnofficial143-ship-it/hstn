@@ -39,7 +39,7 @@ export default function OrdersPage() {
             // Fetch purchase requests
             const { data: requestData } = await supabase.rpc("get_buyer_purchase_requests", {
                 p_buyer_id: user.id
-            })
+            } as any)
 
             if (requestData) {
                 setRequests(requestData)
