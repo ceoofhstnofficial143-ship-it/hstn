@@ -25,7 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             .from("profiles")
             .select("role")
             .eq("id", user.id)
-            .single()
+            .single() as { data: { role: string } | null }
 
         if (profile?.role === "admin") {
             setIsAdmin(true)
