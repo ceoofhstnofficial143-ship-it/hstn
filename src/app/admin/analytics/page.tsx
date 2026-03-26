@@ -75,7 +75,7 @@ export default function AdminAnalyticsPage() {
     // Total event counts
     const { data: events } = await supabase
       .from('marketplace_events')
-      .select('event_type')
+      .select('event_type') as { data: { event_type: string }[] | null }
 
     if (events) {
       const totalViews = events.filter(e => e.event_type === 'product_view').length
@@ -97,7 +97,7 @@ export default function AdminAnalyticsPage() {
     const { data: viewData } = await supabase
       .from('marketplace_events')
       .select('metadata')
-      .eq('event_type', 'product_view')
+      .eq('event_type', 'product_view') as { data: { metadata: { product_id?: string } | null }[] | null }
 
     if (viewData) {
       const productViews: Record<string, number> = {}
@@ -117,17 +117,17 @@ export default function AdminAnalyticsPage() {
         const { data: products } = await supabase
           .from('products')
           .select('id, title')
-          .in('id', topProductIds)
+          .in('id', topProductIds) as { data: { id: string, title: string }[] | null }
 
         const { data: cartData } = await supabase
           .from('marketplace_events')
           .select('metadata')
-          .eq('event_type', 'add_to_cart')
+          .eq('event_type', 'add_to_cart') as { data: { metadata: { product_id?: string } | null }[] | null }
 
         const { data: wishlistData } = await supabase
           .from('marketplace_events')
           .select('metadata')
-          .eq('event_type', 'wishlist_add')
+          .eq('event_type', 'wishlist_add') as { data: { metadata: { product_id?: string } | null }[] | null }
 
         const cartCounts: Record<string, number> = {}
         cartData?.forEach(e => {
@@ -163,7 +163,7 @@ export default function AdminAnalyticsPage() {
     const { data: recentEvents } = await supabase
       .from('marketplace_events')
       .select('event_type, created_at')
-      .gte('created_at', sevenDaysAgo.toISOString())
+      .gte('created_at', sevenDaysAgo.toISOString()) as { data: { event_type: string, created_at: string }[] | null }
 
     if (recentEvents) {
       const dailyMap: Record<string, DailyStats> = {}
