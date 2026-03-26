@@ -350,82 +350,85 @@ export function createSecureAPIMiddleware(options: {
   validateInput?: Record<string, any>;
   cors?: boolean;
 } = {}) {
-  return async (request: NextRequest, handler: (request: NextRequest, context: any) => Promise<NextResponse>): Promise<NextResponse> => {
-    try {
-      // 1. Handle CORS
-      if (options.cors !== false) {
-        const corsResponse = handleCORS(request);
-        if (corsResponse) return corsResponse;
-      }
-
-      // 2. Apply rate limiting
-      if (options.rateLimit !== false) {
-        const rateLimitResult = applyRateLimit(request, API_SECURITY_CONFIG.rateLimit);
-        if (!rateLimitResult.success) {
-          return createRateLimitResponse(rateLimitResult, API_SECURITY_CONFIG.rateLimit.windowMs);
+  return (handler: (request: NextRequest, context: any) => Promise<NextResponse>) => {
+    return async (request: NextRequest, context: any): Promise<NextResponse> => {
+      try {
+        // 1. Handle CORS
+        if (options.cors !== false) {
+          const corsResponse = handleCORS(request);
+          if (corsResponse) return corsResponse;
         }
+
+        // 2. Apply rate limiting
+        if (options.rateLimit !== false) {
+          const rateLimitResult = applyRateLimit(request, API_SECURITY_CONFIG.rateLimit);
+          if (!rateLimitResult.success) {
+            return createRateLimitResponse(rateLimitResult, API_SECURITY_CONFIG.rateLimit.windowMs);
+          }
+        }
+
+        // 3. Authenticate user
+        let authResult: { user: any | null; session: any | null; error?: NextResponse } = { user: null, session: null };
+        if (options.requireAuth !== false) {
+          authResult = await authenticateRequest(request);
+          if (authResult.error) return authResult.error;
+        }
+
+        // 4. Authorize request
+        if (options.requiredRole && authResult.user) {
+          const authError = authorizeRequest(authResult.user, options.requiredRole);
+          if (authError) return authError;
+        }
+
+        // 5. Validate input
+        let validatedData: any = {};
+        if (options.validateInput) {
+          const validation = await validateRequestInput(request, options.validateInput);
+          if (validation.error) return validation.error;
+          validatedData = validation.data || {};
+        }
+
+        // 6. Execute handler with security context and merge with original context
+        const securityContext = {
+          ...context,
+          user: authResult.user,
+          session: authResult.session,
+          validatedData
+        };
+
+        return await handler(request, securityContext);
+
+      } catch (error) {
+        logAuditEvent('api_error', request, {
+          error: error instanceof Error ? error.message : 'Unknown API error'
+        });
+
+        return NextResponse.json(
+          { error: 'Internal server error' },
+          { status: 500 }
+        );
       }
-
-      // 3. Authenticate user
-      let authResult: { user: any | null; session: any | null; error?: NextResponse } = { user: null, session: null };
-      if (options.requireAuth !== false) {
-        authResult = await authenticateRequest(request);
-        if (authResult.error) return authResult.error;
-      }
-
-      // 4. Authorize request
-      if (options.requiredRole && authResult.user) {
-        const authError = authorizeRequest(authResult.user, options.requiredRole);
-        if (authError) return authError;
-      }
-
-      // 5. Validate input
-      let validatedData: any = {};
-      if (options.validateInput) {
-        const validation = await validateRequestInput(request, options.validateInput);
-        if (validation.error) return validation.error;
-        validatedData = validation.data || {};
-      }
-
-      // 6. Execute handler with security context
-      const context = {
-        user: authResult.user,
-        session: authResult.session,
-        validatedData
-      };
-
-      return await handler(request, context);
-
-    } catch (error) {
-      logAuditEvent('api_error', request, {
-        error: error instanceof Error ? error.message : 'Unknown API error'
-      });
-
-      return NextResponse.json(
-        { error: 'Internal server error' },
-        { status: 500 }
-      );
-    }
+    };
   };
 }
 
 // API endpoint wrappers with security
 export const secureAPI = {
   // GET endpoint
-  GET: (handler: Function, options?: any) =>
-    createSecureAPIMiddleware({ ...options, method: 'GET' }),
+  GET: (handler: any, options?: any) =>
+    createSecureAPIMiddleware({ ...options })(handler),
 
   // POST endpoint
-  POST: (handler: Function, options?: any) =>
-    createSecureAPIMiddleware({ ...options, method: 'POST' }),
+  POST: (handler: any, options?: any) =>
+    createSecureAPIMiddleware({ ...options })(handler),
 
   // PUT endpoint
-  PUT: (handler: Function, options?: any) =>
-    createSecureAPIMiddleware({ ...options, method: 'PUT' }),
+  PUT: (handler: any, options?: any) =>
+    createSecureAPIMiddleware({ ...options })(handler),
 
   // DELETE endpoint
-  DELETE: (handler: Function, options?: any) =>
-    createSecureAPIMiddleware({ ...options, method: 'DELETE' })
+  DELETE: (handler: any, options?: any) =>
+    createSecureAPIMiddleware({ ...options })(handler)
 };
 
 // Security monitoring for API endpoints

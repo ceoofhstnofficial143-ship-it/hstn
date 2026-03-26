@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -8,6 +8,8 @@ import { getTrustTier } from "@/lib/trustTier"
 import { supabase } from "@/lib/supabase"
 import { Analytics } from "@/lib/analytics"
 import { LogisticsProtocol } from "@/lib/logistics"
+
+import AddressSelector from "@/components/checkout/AddressSelector"
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -20,20 +22,11 @@ export default function CheckoutPage() {
   }, []);
 
   const [cartItems, setCartItems] = useState<any[]>([])
-  const [paymentMethod, setPaymentMethod] = useState("card")
   const [loading, setLoading] = useState(true)
   const [processingStatus, setProcessingStatus] = useState<string | null>(null)
   
-  // Shipping form state (controlled — no more querySelector)
-  const [shippingForm, setShippingForm] = useState({
-    fullName: "",
-    phone: "",
-    address: "",
-    city: "",
-    pincode: "",
-  })
-  const updateShipping = (field: string, value: string) =>
-    setShippingForm(prev => ({ ...prev, [field]: value }))
+  // 🏨 NEW ADDRESS SYSTEM INTEGRATION
+  const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [logistics, setLogistics] = useState<{ serviceable: boolean; estimatedDays: number | null; carrier: string } | null>(null)
 
   useEffect(() => {
@@ -70,35 +63,41 @@ export default function CheckoutPage() {
     fetchCartTrust()
   }, [router])
 
-  const total = cartItems.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0)
-
-  const handlePincodeCheck = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    updateShipping('pincode', val)
-    if (val.length === 6) {
+  const checkLogistics = useCallback(async (pincode: string) => {
+    if (pincode.length === 6) {
       setProcessingStatus("Verifying Logistics Protocol...")
-      const res = await LogisticsProtocol.checkServiceability(val)
+      const res = await LogisticsProtocol.checkServiceability(pincode)
       setLogistics(res)
       setProcessingStatus(null)
     } else {
       setLogistics(null)
     }
-  }
+  }, []);
 
+  const handleAddressSelect = useCallback((address: any) => {
+    setSelectedAddress(address);
+    checkLogistics(address.pincode);
+  }, [checkLogistics]);
+
+  const total = cartItems.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0)
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const handlePayment = async () => {
-    if (!logistics?.serviceable && shippingForm.pincode.length === 6) {
-        return alert("Logistics Protocol: The specified pincode is outside our white-glove delivery network.")
+    if (!selectedAddress) {
+      return alert("Logistics Context Error: Please select a shipping destination.")
+    }
+
+    if (!logistics?.serviceable) {
+      return alert("Logistics Protocol: The specified destination is outside our white-glove delivery network.")
     }
 
     const enabled = process.env.NEXT_PUBLIC_CHECKOUT_ENABLED !== 'false';
     const mode = process.env.NEXT_PUBLIC_PAYMENT_MODE || "mock"
 
     if (!enabled) {
-        setProcessingStatus(null);
-        alert("Institutional Acquisition Gateway is currently in Maintenance Mode. Reconvene later.");
-        return;
+      setProcessingStatus(null);
+      alert("Institutional Acquisition Gateway is currently in Maintenance Mode. Reconvene later.");
+      return;
     }
 
     setProcessingStatus("Initializing Secure Protocol...");
@@ -113,20 +112,41 @@ export default function CheckoutPage() {
         return
       }
 
-      // Get shipping data from the form
-      const shippingData = shippingForm
-
-      if (!shippingData.fullName || !shippingData.phone || !shippingData.address || !shippingData.pincode) {
-        alert("Logistics context required: Please complete shipping fields.");
-        setLoading(false);
-        setProcessingStatus(null);
-        return;
-      }
-
-      // 1. Create Razorpay order via API
       // 🔐 FETCH AUTH TOKEN (Sync with SSR)
       const { data: { session } } = await supabase.auth.getSession();
       
+      // 🕵️ PHASE 1: CREATE ORDER (SQL LINKING)
+      // This attaches the selected address and seller_ids to the database first
+      setProcessingStatus("Generating Order Identity...")
+      const orderRes = await fetch("/api/orders", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token || ""}`
+        },
+        body: JSON.stringify({
+          address_id: selectedAddress.id,
+          items: cartItems.map(item => ({
+            product_id: item.productId,
+            seller_id: item.seller_id,
+            quantity: item.qty || 1,
+            price: item.price,
+            size: item.size
+          }))
+        })
+      });
+
+      if (!orderRes.ok) {
+        const errorData = await orderRes.json().catch(() => ({}));
+        throw new Error(errorData.error || "Order Initialization Protocol Failed.");
+      }
+
+      const orderData = await orderRes.json();
+      const orderBundle = orderData.order_ids || [];
+      console.log("SQL Order Bundle Created:", orderBundle);
+
+      // 🕵️ PHASE 2: LAUNCH TRANSACTION
+      setProcessingStatus("Initializing Gateway Session...")
       const res = await fetch("/api/create-order", {
         method: "POST",
         headers: { 
@@ -136,7 +156,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           amount: total,
           cart: cartItems,
-          shipping: shippingData,
+          shipping: selectedAddress,
         }),
       })
 
@@ -146,7 +166,7 @@ export default function CheckoutPage() {
       }
       
       const order = await res.json();
-      setProcessingStatus("Launching Transaction...")
+      setProcessingStatus("Launching Transaction Interface...")
 
       // 🕵️ MOCK MODE HANDLER
       if (mode === "mock") {
@@ -162,7 +182,8 @@ export default function CheckoutPage() {
             razorpay_payment_id: "mock_pay_" + Date.now(),
             razorpay_signature: "mock_signature",
             cart: cartItems,
-            shipping: shippingData,
+            shipping: selectedAddress,
+            order_ids: orderBundle // Pass full bundle
           }),
         });
 
@@ -174,14 +195,14 @@ export default function CheckoutPage() {
         const verifyData = await verifyRes.json();
         
         if (verifyData.success) {
-          Analytics.logCheckoutComplete(user.id, verifyData.order_id);
+          Analytics.logCheckoutComplete(user.id, orderBundle[0]);
           const fullCart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
           const purchasedKeys = cartItems.map(i => `${i.productId}-${i.size}`)
           const remainingCart = fullCart.filter((item: any) => !purchasedKeys.includes(`${item.productId}-${item.size}`))
           localStorage.setItem("hstnlx_cart", JSON.stringify(remainingCart))
           localStorage.removeItem("hstnlx_checkout_items")
           window.dispatchEvent(new Event("hstnlx-cart-updated"))
-          router.push(`/checkout/success?order_id=${verifyData.order_id}`)
+          router.push(`/checkout/success?order_id=${orderBundle[0]}`)
         }
         return;
       }
@@ -205,7 +226,8 @@ export default function CheckoutPage() {
               body: JSON.stringify({
                 ...response,
                 cart: cartItems,
-                shipping: shippingData,
+                shipping: selectedAddress,
+                order_ids: orderBundle // Pass full bundle
               }),
             });
 
@@ -213,14 +235,14 @@ export default function CheckoutPage() {
             const verifyData = await verifyRes.json();
             
             if (verifyData.success) {
-              Analytics.logCheckoutComplete(user.id, verifyData.order_id);
+              Analytics.logCheckoutComplete(user.id, orderBundle[0]);
               const fullCart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
               const purchasedKeys = cartItems.map(i => `${i.productId}-${i.size}`)
               const remainingCart = fullCart.filter((item: any) => !purchasedKeys.includes(`${item.productId}-${item.size}`))
               localStorage.setItem("hstnlx_cart", JSON.stringify(remainingCart))
               localStorage.removeItem("hstnlx_checkout_items")
               window.dispatchEvent(new Event("hstnlx-cart-updated"))
-              router.push(`/checkout/success?order_id=${verifyData.order_id}`)
+              router.push(`/checkout/success?order_id=${orderBundle[0]}`)
             } else {
               throw new Error("Payment verification failed");
             }
@@ -328,33 +350,26 @@ export default function CheckoutPage() {
 
         <div className={`grid grid-cols-1 lg:grid-cols-5 gap-16 ${processingStatus ? 'pointer-events-none opacity-50' : ''}`}>
           <div className="lg:col-span-3 space-y-12">
-            {/* Section 1: Shipping */}
+            
+            {/* 📍 ADDRESS SELECTION SECTION */}
             <section className="space-y-8">
               <div className="flex items-center gap-4">
                 <span className="w-8 h-8 rounded-full bg-foreground text-card flex items-center justify-center text-[10px] font-bold">1</span>
                 <h2 className="text-h3 uppercase tracking-widest font-bold">Destinations</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <input placeholder="Full Name" value={shippingForm.fullName} onChange={e => updateShipping('fullName', e.target.value)} className="sm:col-span-2 bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
-                <input placeholder="Shipping Address" value={shippingForm.address} onChange={e => updateShipping('address', e.target.value)} className="sm:col-span-2 bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
-                <input placeholder="City" value={shippingForm.city} onChange={e => updateShipping('city', e.target.value)} className="bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
-                <div className="relative">
-                    <input 
-                        placeholder="Pincode" 
-                        maxLength={6}
-                        value={shippingForm.pincode}
-                        onChange={handlePincodeCheck}
-                        className={`w-full bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 transition-smooth ${logistics?.serviceable ? 'ring-green-500' : logistics === null ? 'ring-primary' : 'ring-red-500'}`} 
-                    />
-                    {logistics?.serviceable && (
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500 text-[9px] font-black uppercase tracking-widest">Serviceable</span>
-                    )}
-                    {logistics && !logistics.serviceable && (
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 text-[9px] font-black uppercase tracking-widest">Unserviceable</span>
-                    )}
+              
+              <AddressSelector 
+                selectedId={selectedAddress?.id || null} 
+                onSelect={handleAddressSelect} 
+              />
+
+              {logistics && !logistics.serviceable && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                  <p className="text-[10px] text-red-500 uppercase tracking-widest font-black">
+                    Logistics Exception: Selected pincode is currently outside our high-performance delivery network.
+                  </p>
                 </div>
-                <input placeholder="Phone Number" value={shippingForm.phone} onChange={e => updateShipping('phone', e.target.value)} className="sm:col-span-2 bg-accent/20 border-none rounded-xl px-6 py-4 text-body outline-none focus:ring-1 ring-primary transition-smooth" />
-              </div>
+              )}
             </section>
 
             <div className="h-px bg-border" />
@@ -366,28 +381,14 @@ export default function CheckoutPage() {
                 <h2 className="text-h3 uppercase tracking-widest font-bold">Protocol</h2>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  onClick={() => setPaymentMethod("card")}
-                  className={`flex-1 p-6 rounded-2xl border-2 transition-smooth text-left ${paymentMethod === "card" ? "border-primary bg-primary/5" : "border-border opacity-60"}`}
-                >
-                  <p className="text-caption font-bold uppercase tracking-widest mb-2">Electronic Transfer</p>
-                  <p className="text-[10px] text-muted">Razorpay Gateway • Secured by 256-bit encryption</p>
-                </button>
-                <button
-                  disabled
-                  className="flex-1 p-6 rounded-2xl border-2 border-border opacity-20 text-left cursor-not-allowed"
-                >
-                  <p className="text-caption font-bold uppercase tracking-widest mb-2">Cash on Delivery</p>
-                  <p className="text-[10px] text-muted">Inactive for this asset tier</p>
-                </button>
-              </div>
-
               <div className="luxury-card p-10 bg-accent/10 border-none space-y-4 animate-fade-in text-center">
-                  <p className="text-caption font-bold text-white mb-2">Electronic Transaction Interface</p>
+                  <div className="flex items-center justify-center gap-3 mb-2">
+                    <span className="w-3 h-3 bg-primary rounded-full animate-pulse" />
+                    <p className="text-caption font-bold text-white uppercase tracking-widest">Electronic Transaction Interface</p>
+                  </div>
                   <p className="text-[10px] text-white/50 uppercase tracking-[0.2em] leading-relaxed">
                     Razorpay Secure Gateway will be initialized upon protocol launch.<br/>
-                    Ensuring institutional-grade security for your acquisition.
+                    Full buyer protection and escrow active.
                   </p>
               </div>
             </section>
@@ -402,7 +403,7 @@ export default function CheckoutPage() {
                 {cartItems.map(item => {
                   const tier = getTrustTier(item.trust?.score)
                   return (
-                    <div key={item.productId} className="space-y-4 p-4 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-smooth">
+                    <div key={`${item.productId}-${item.size}`} className="space-y-4 p-4 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-smooth">
 
                       {/* Status Reinforcement Block */}
                       <div className="flex items-center gap-4 border-b border-white/10 pb-4">
@@ -426,7 +427,7 @@ export default function CheckoutPage() {
                           <div className="w-16 h-20 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10 relative">
                             <Image 
                               src={item.image || 'https://images.unsplash.com/photo-1594932224010-74f43a02476b?q=80&w=2000'} 
-                              className="object-cover" 
+                              className="object-cover transition-transform group-hover:scale-110" 
                               alt={item.title} 
                               fill
                               sizes="64px"
@@ -455,18 +456,6 @@ export default function CheckoutPage() {
                                </div>
                                <span className="font-bold text-primary text-sm mt-2 block">₹ {(item.price * (item.qty || 1)).toLocaleString()}</span>
                             </div>
-
-                            {/* Trusted Fabric Seller Signal */}
-                            {(item.trust?.verified || item.video_url) && (
-                              <div className="flex items-start gap-2 mt-3 p-2 bg-green-500/10 rounded-md border border-green-500/20">
-                                <span className="text-green-500 text-xs mt-0.5">🛡️</span>
-                                <div>
-                                  <p className="text-[9px] font-bold text-green-500 uppercase tracking-widest">Video-Verified Fabric</p>
-                                  <p className="text-[8px] text-green-500/70 uppercase tracking-tighter mt-0.5">Authenticated through motion capture.</p>
-                                </div>
-                              </div>
-                            )}
-
                           </div>
                       </div>
                     </div>
@@ -481,7 +470,7 @@ export default function CheckoutPage() {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                 </span>
                 <span className="text-[9px] uppercase tracking-widest text-primary font-bold">
-                  High Demand • 3 buyers viewed this seller in the last hour
+                  High Demand • Real-time acquisition active
                 </span>
               </div>
 

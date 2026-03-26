@@ -12,9 +12,6 @@ export default function SettingsPage() {
     const [formData, setFormData] = useState({
         fullName: "",
         phone: "",
-        address: "",
-        city: "",
-        pincode: "",
         bio: ""
     })
     const router = useRouter()
@@ -31,7 +28,7 @@ export default function SettingsPage() {
             // Fetch existing profile data
             const { data: profile } = await supabase
                 .from("profiles")
-                .select("*")
+                .select("full_name, phone, bio")
                 .eq("id", user.id)
                 .single()
 
@@ -39,9 +36,6 @@ export default function SettingsPage() {
                 setFormData({
                     fullName: profile.full_name || "",
                     phone: profile.phone || "",
-                    address: profile.address || "",
-                    city: profile.city || "",
-                    pincode: profile.pincode || "",
                     bio: profile.bio || ""
                 })
             }
@@ -61,9 +55,6 @@ export default function SettingsPage() {
                 id: user.id,
                 full_name: formData.fullName,
                 phone: formData.phone,
-                address: formData.address,
-                city: formData.city,
-                pincode: formData.pincode,
                 bio: formData.bio,
                 updated_at: new Date().toISOString()
             })
@@ -90,107 +81,99 @@ export default function SettingsPage() {
         <main className="bg-background min-h-screen animate-fade-in py-20">
             <div className="section-container">
                 <header className="mb-16">
-                    <Link href="/profile" className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 mb-8">
+                    <Link href="/profile" className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800 hover:text-black mb-8 transition-colors">
                         ← Back to Profile
                     </Link>
                     <span className="text-caption uppercase tracking-widest text-primary font-bold">Account Settings</span>
-                    <h1 className="text-display mt-2">Edit Your Profile</h1>
-                    <p className="text-body text-muted mt-4">Update your personal information and preferences.</p>
+                    <h1 className="text-display mt-2 text-black">Edit Your Profile</h1>
+                    <p className="text-body text-gray-700 mt-4">Update your personal information and preferences.</p>
                 </header>
 
-                <form onSubmit={handleSubmit} className="max-w-2xl space-y-8">
-                    <div className="luxury-card p-8">
-                        <h2 className="text-h3 font-bold mb-6">Personal Information</h2>
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Full Name</label>
-                                <input
-                                    type="text"
-                                    value={formData.fullName}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                                    placeholder="Enter your full name"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Phone Number</label>
-                                <input
-                                    type="tel"
-                                    value={formData.phone}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                                    placeholder="Enter your phone number"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Bio</label>
-                                <textarea
-                                    value={formData.bio}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                                    placeholder="Tell us about yourself"
-                                    rows={4}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="luxury-card p-8">
-                        <h2 className="text-h3 font-bold mb-6">Shipping Address</h2>
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Address</label>
-                                <input
-                                    type="text"
-                                    value={formData.address}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                                    placeholder="Enter your address"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                    <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-8">
+                        <div className="luxury-card p-8 bg-white border-gray-100 shadow-sm">
+                            <h2 className="text-h3 font-bold mb-6 text-black">Personal Information</h2>
+                            <div className="space-y-6">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">City</label>
+                                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Full Name</label>
                                     <input
                                         type="text"
-                                        value={formData.city}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                                        className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                                        placeholder="City"
+                                        value={formData.fullName}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-6 py-4 text-black focus:ring-1 ring-primary transition-all outline-none"
+                                        placeholder="Enter your full name"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Pincode</label>
+                                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Phone Number</label>
                                     <input
-                                        type="text"
-                                        value={formData.pincode}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, pincode: e.target.value }))}
-                                        className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                                        placeholder="Pincode"
+                                        type="tel"
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-6 py-4 text-black focus:ring-1 ring-primary transition-all outline-none"
+                                        placeholder="Enter your phone number"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Bio</label>
+                                    <textarea
+                                        value={formData.bio}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-6 py-4 text-black focus:ring-1 ring-primary transition-all outline-none"
+                                        placeholder="Tell us about yourself"
+                                        rows={4}
                                     />
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="flex gap-4">
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            className="luxury-button flex-1"
-                        >
-                            {saving ? "Saving..." : "Save Changes"}
-                        </button>
-                        <Link href="/profile" className="flex-1">
+                        <div className="flex gap-4">
                             <button
-                                type="button"
-                                className="w-full border border-gray-300 text-gray-700 font-semibold rounded-lg py-4 hover:bg-gray-50 transition-colors"
+                                type="submit"
+                                disabled={saving}
+                                className="luxury-button flex-1 py-5 !text-[10px] font-black uppercase tracking-widest bg-black text-white hover:bg-gray-900"
                             >
-                                Cancel
+                                {saving ? "Synchronizing..." : "Save Changes"}
                             </button>
-                        </Link>
-                    </div>
-                </form>
+                            <Link href="/profile" className="flex-1">
+                                <button
+                                    type="button"
+                                    className="w-full h-full border border-gray-200 text-gray-500 font-black text-[10px] uppercase tracking-widest rounded-full hover:bg-gray-50 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </Link>
+                        </div>
+                    </form>
+
+                    <aside className="space-y-6">
+                        <div className="luxury-card p-8 bg-primary/5 border-primary/20 space-y-6">
+                            <div>
+                                <h3 className="text-caption font-bold text-primary uppercase tracking-widest mb-2">Shipping Protocol</h3>
+                                <p className="text-[10px] leading-relaxed text-gray-600 uppercase tracking-widest">
+                                    Shipping destinations are now managed through our high-performance Address Protocol.
+                                </p>
+                            </div>
+                            
+                            <Link href="/profile/addresses" className="block p-5 bg-white rounded-2xl border border-gray-100 hover:border-primary transition-all group shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black text-black uppercase tracking-widest mb-1 group-hover:text-primary transition-colors">Manage Addresses</p>
+                                        <p className="text-[9px] text-gray-400 uppercase font-medium">Add or edit destinations</p>
+                                    </div>
+                                    <span className="text-xl">📍</span>
+                                </div>
+                            </Link>
+                        </div>
+
+                        <div className="p-8 border border-gray-100 rounded-[32px] space-y-4 bg-gray-50/50">
+                            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Security Protocol</h3>
+                            <p className="text-[9px] text-gray-500 leading-relaxed uppercase font-medium">
+                                All profile modifications are logged in our decentralized session ledger to ensure account integrity.
+                            </p>
+                        </div>
+                    </aside>
+                </div>
             </div>
         </main>
     )

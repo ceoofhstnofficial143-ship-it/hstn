@@ -94,52 +94,87 @@ export async function POST(req: Request) {
       }, { status: 401 });
     }
 
-    // 🔐 4. UNIFIED ATOMIC FULFILLMENT (Hardened V13.6 RPC)
-    // 🛡️ SECURITY: Fetch session-of-record. DO NOT trust cart from client.
-    // 🔐 4. UNIFIED ATOMIC FULFILLMENT (Hardened V13.6 RPC)
-    // 🛡️ SECURITY: Fetch session-of-record. DO NOT trust cart from client.
-    let sessionData = null;
-    let sessionErr = null;
-    
-    // 🛡️ RETRY MECHANISM (Protocol Synchronization)
-    // Prevents race conditions during mock/fast verification
-    for (let i = 0; i < 4; i++) {
-        const { data, error } = await supabaseAdmin
-            .from("checkout_sessions")
-            .select("cart, shipping")
-            .eq("razorpay_order_id", razorpay_order_id)
-            .single();
-        
-        if (data) {
-            sessionData = data;
-            break;
+    // 🔐 4. UNIFIED ATOMIC FULFILLMENT OR UPDATE
+    const internalOrderId = body.internal_order_id;
+    const internalOrderIds = body.order_ids || (internalOrderId ? [internalOrderId] : []);
+
+    let finalizedOrderId = null;
+
+    if (internalOrderIds.length > 0) {
+      console.log(`[VERIFY] Found existing pending orders: ${internalOrderIds.join(', ')}. Transitioning to PAID.`);
+      
+      // Update existing orders
+      const { error: updateError } = await supabaseAdmin
+        .from('orders')
+        .update({ 
+          status: 'confirmed', 
+          payment_status: 'paid', 
+          payment_id: razorpay_payment_id,
+          razorpay_order_id: razorpay_order_id 
+        })
+        .in('id', internalOrderIds);
+
+      if (updateError) throw new Error(`Existing Order Update Failed: ${updateError.message}`);
+
+      // Handle Stock Reduction for these orders
+      const { data: itemsToReduce } = await supabaseAdmin
+        .from('order_items')
+        .select('product_id, quantity')
+        .in('order_id', internalOrderIds);
+
+      if (itemsToReduce) {
+        for (const item of itemsToReduce) {
+          await supabaseAdmin.rpc('increment_stock', { p_id: item.product_id, p_qty: -item.quantity });
         }
-        
-        sessionErr = error;
-        if (i < 3) await new Promise(r => setTimeout(r, 500));
-    }
-    
-    if (!sessionData) {
-        console.error("Session matching protocol failure after retries. Potential fraudulent acquisition or async synchronization delay.");
-        throw new Error("Integrated Payment Session not found. Sequence out of sync.");
-    }
+      }
 
-    const { data: orderId, error: rpcError } = await supabaseAdmin.rpc("place_order_after_payment", {
-      p_cart: sessionData.cart,
-      p_payment_id: razorpay_payment_id,
-      p_razorpay_order_id: razorpay_order_id,
-      p_is_verified: true,
-      p_shipping: sessionData.shipping,
-      p_user_id_override: user.id
-    });
+      finalizedOrderId = internalOrderIds[0]; // Return the first one as primary reference
+    } else {
+      // 🛡️ LEGACY/FALLBACK: Create via RPC if no internal matching found
+      let sessionData = null;
+      let sessionErr = null;
+      
+      // 🛡️ RETRY MECHANISM (Protocol Synchronization)
+      // Prevents race conditions during mock/fast verification
+      for (let i = 0; i < 4; i++) {
+          const { data, error } = await supabaseAdmin
+              .from("checkout_sessions")
+              .select("cart, shipping")
+              .eq("razorpay_order_id", razorpay_order_id)
+              .single();
+          
+          if (data) {
+              sessionData = data;
+              break;
+          }
+          
+          sessionErr = error;
+          if (i < 3) await new Promise(r => setTimeout(r, 500));
+      }
+      
+      if (!sessionData) {
+          console.error("Session matching protocol failure after retries. Potential fraudulent acquisition or async synchronization delay.");
+          throw new Error("Integrated Payment Session not found. Sequence out of sync.");
+      }
 
-    if (rpcError) {
-       console.error("[VERIFY] RPC Execution Failed:", rpcError);
-       return NextResponse.json({ success: false, error: rpcError.message }, { status: 500 });
+      const { data: rpcOrderId, error: rpcError } = await supabaseAdmin.rpc("place_order_after_payment", {
+        p_cart: sessionData.cart,
+        p_payment_id: razorpay_payment_id,
+        p_razorpay_order_id: razorpay_order_id,
+        p_is_verified: true,
+        p_shipping: sessionData.shipping,
+        p_user_id_override: user.id
+      });
+
+      if (rpcError) {
+         console.error("[VERIFY] RPC Execution Failed:", rpcError);
+         return NextResponse.json({ success: false, error: rpcError.message }, { status: 500 });
+      }
+      finalizedOrderId = rpcOrderId;
     }
 
     if (mode === "mock") {
-      console.log(`[MOCK MODE] Real order created via engine: ${orderId}`);
+      console.log(`[MOCK MODE] Real order created via engine: ${finalizedOrderId}`);
     }
 
     // 🕵️ 5. RELEASE LOCK (Order Secured)
@@ -152,10 +187,10 @@ export async function POST(req: Request) {
         status: 'success',
         user_id: user.id,
         reference_id: razorpay_payment_id,
-        metadata: { order_id: orderId, rzp_order_id: razorpay_order_id }
+        metadata: { order_id: finalizedOrderId, rzp_order_id: razorpay_order_id }
     });
 
-    return NextResponse.json({ success: true, order_id: orderId });
+    return NextResponse.json({ success: true, order_id: finalizedOrderId });
   } catch (err: any) {
     console.error("Payment node critical failure:", err);
     
