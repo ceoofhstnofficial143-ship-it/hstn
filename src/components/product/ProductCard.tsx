@@ -83,7 +83,9 @@ export default function ProductCard({ product }: ProductCardProps) {
         .eq("user_id", user.id)
         .eq("product_id", product.id)
       
-      if (!error) {
+      if (error) {
+        setShowToast("Failed to remove")
+      } else {
         setIsWishlisted(false)
         setShowToast("Removed")
       }
@@ -92,7 +94,9 @@ export default function ProductCard({ product }: ProductCardProps) {
         .from("wishlist")
         .insert({ user_id: user.id, product_id: product.id } as any)
       
-      if (!error) {
+      if (error) {
+        setShowToast("Failed to add")
+      } else {
         setIsWishlisted(true)
         setShowToast("Wishlisted ❤️")
       }

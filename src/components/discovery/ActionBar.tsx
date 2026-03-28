@@ -33,7 +33,8 @@ export default function ActionBar({ productId, title, onLike, isLiked }: ActionB
       .select("id")
       .eq("user_id", user.id)
       .eq("product_id", productId)
-      .single() as { data: { id: string } | null }
+      .is("size", null)
+      .single()
 
     setInCart(!!data)
   }
@@ -54,33 +55,43 @@ export default function ActionBar({ productId, title, onLike, isLiked }: ActionB
       return
     }
 
-    if (inCart) {
-      // Increase quantity
-      const { data: existing } = await supabase
-        .from("carts")
-        .select("id, quantity")
-        .eq("user_id", user.id)
-        .eq("product_id", productId)
-        .single() as { data: { id: string; quantity: number } | null }
+    // Check if already in cart
+    const { data: existing, error: queryError } = await supabase
+      .from("carts")
+      .select("id, quantity")
+      .eq("user_id", user.id)
+      .eq("product_id", productId)
+      .is("size", null)
+      .single()
 
-      if (existing) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from("carts") as any)
-          .update({ quantity: existing.quantity + 1 })
-          .eq("id", existing.id)
+    if (existing && !queryError) {
+      // Update quantity - MUST await!
+      const { error: updateError } = await supabase
+        .from("carts")
+        .update({ quantity: existing.quantity + 1 })
+        .eq("id", existing.id)
+      
+      if (updateError) {
+        setShowToast("Failed to update")
+      } else {
         setShowToast("Quantity +1")
       }
     } else {
       // Add new
-      await supabase
+      const { error: insertError } = await supabase
         .from("carts")
         .insert({
           user_id: user.id,
           product_id: productId,
           quantity: 1
         } as any)
-      setInCart(true)
-      setShowToast("Added to cart")
+      
+      if (insertError) {
+        setShowToast("Failed to add")
+      } else {
+        setInCart(true)
+        setShowToast("Added to cart")
+      }
     }
 
     setTimeout(() => setShowToast(""), 2000)

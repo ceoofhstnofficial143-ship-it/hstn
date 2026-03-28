@@ -614,24 +614,36 @@ export default function ProductClient() {
     const variantPrice = hasVariants ? getPriceForVariant(selectedSize!, selectedColor || undefined) : product.price
 
     // Check if already in cart (Supabase)
-    const { data: existingCart } = await supabase
+    let query = supabase
       .from("carts")
       .select("id, quantity")
       .eq("user_id", user.id)
       .eq("product_id", productId)
-      .eq("size", selectedSize || "")
-      .single() as { data: { id: string; quantity: number } | null }
+    
+    // Handle size filter - use .is() for null, .eq() for value
+    if (selectedSize) {
+      query = query.eq("size", selectedSize)
+    } else {
+      query = query.is("size", null)
+    }
+    
+    const { data: existingCart, error: queryError } = await query.single()
 
-    if (existingCart) {
-      // Update quantity
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("carts") as any)
+    if (existingCart && !queryError) {
+      // Update quantity - MUST await!
+      const { error: updateError } = await supabase
+        .from("carts")
         .update({ quantity: existingCart.quantity + quantity })
         .eq("id", existingCart.id)
-      setUiToast(`Updated quantity to ${existingCart.quantity + quantity}`)
+      
+      if (updateError) {
+        setUiToast("Failed to update cart")
+      } else {
+        setUiToast(`Updated quantity to ${existingCart.quantity + quantity}`)
+      }
     } else {
       // Add new
-      await supabase
+      const { error: insertError } = await supabase
         .from("carts")
         .insert({
           user_id: user.id,
@@ -641,7 +653,12 @@ export default function ProductClient() {
           quantity: quantity,
           seller_id: product.user_id
         } as any)
-      setUiToast(`Added ${quantity} to cart`)
+      
+      if (insertError) {
+        setUiToast("Failed to add to cart")
+      } else {
+        setUiToast(`Added ${quantity} to cart`)
+      }
     }
 
     window.dispatchEvent(new Event("hstnlx-cart-updated"))
