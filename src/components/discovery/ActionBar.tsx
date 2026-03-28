@@ -56,18 +56,21 @@ export default function ActionBar({ productId, title, onLike, isLiked }: ActionB
     }
 
     // Check if already in cart
-    const { data: existing, error: queryError } = await supabase
+    const result = await supabase
       .from("carts")
       .select("id, quantity")
       .eq("user_id", user.id)
       .eq("product_id", productId)
       .is("size", null)
-      .single()
+      .single() as { data: { id: string; quantity: number } | null; error: any }
+    
+    const existing = result.data
+    const queryError = result.error
 
     if (existing && !queryError) {
       // Update quantity - MUST await!
-      const { error: updateError } = await supabase
-        .from("carts")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: updateError } = (supabase.from("carts") as any)
         .update({ quantity: existing.quantity + 1 })
         .eq("id", existing.id)
       
