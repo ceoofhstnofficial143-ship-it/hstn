@@ -535,6 +535,7 @@ export default function ProductClient() {
       if (!error) {
         setInWishlist(false)
         setUiToast("Removed from wishlist")
+        window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
       }
     } else {
       const { error } = await supabase
@@ -543,6 +544,7 @@ export default function ProductClient() {
       if (!error) {
         setInWishlist(true)
         setUiToast("Added to wishlist ❤️")
+        window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
       }
     }
   }

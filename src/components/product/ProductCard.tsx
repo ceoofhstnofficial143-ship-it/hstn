@@ -88,6 +88,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       } else {
         setIsWishlisted(false)
         setShowToast("Removed")
+        window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
       }
     } else {
       const { error } = await supabase
@@ -99,6 +100,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       } else {
         setIsWishlisted(true)
         setShowToast("Wishlisted ❤️")
+        window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
       }
     }
     
