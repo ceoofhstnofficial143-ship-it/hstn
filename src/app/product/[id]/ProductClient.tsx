@@ -615,9 +615,9 @@ export default function ProductClient() {
 
     // Check if already in cart (Supabase)
     const { data: existingCart } = await supabase
-      .from("cart")
+      .from("carts")
       .select("id, quantity")
-      .eq("buyer_id", user.id)
+      .eq("user_id", user.id)
       .eq("product_id", productId)
       .eq("size", selectedSize || "")
       .single() as { data: { id: string; quantity: number } | null }
@@ -625,21 +625,21 @@ export default function ProductClient() {
     if (existingCart) {
       // Update quantity
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase.from("cart") as any)
+      (supabase.from("carts") as any)
         .update({ quantity: existingCart.quantity + quantity })
         .eq("id", existingCart.id)
       setUiToast(`Updated quantity to ${existingCart.quantity + quantity}`)
     } else {
       // Add new
       await supabase
-        .from("cart")
+        .from("carts")
         .insert({
-          buyer_id: user.id,
+          user_id: user.id,
           product_id: productId,
           size: selectedSize || null,
           color: selectedColor || null,
           quantity: quantity,
-          price: variantPrice
+          seller_id: product.user_id
         } as any)
       setUiToast(`Added ${quantity} to cart`)
     }

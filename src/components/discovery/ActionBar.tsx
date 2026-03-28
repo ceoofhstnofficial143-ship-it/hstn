@@ -29,9 +29,9 @@ export default function ActionBar({ productId, title, onLike, isLiked }: ActionB
     if (!user) return
 
     const { data } = await supabase
-      .from("cart")
+      .from("carts")
       .select("id")
-      .eq("buyer_id", user.id)
+      .eq("user_id", user.id)
       .eq("product_id", productId)
       .single() as { data: { id: string } | null }
 
@@ -57,26 +57,25 @@ export default function ActionBar({ productId, title, onLike, isLiked }: ActionB
     if (inCart) {
       // Increase quantity
       const { data: existing } = await supabase
-        .from("cart")
-        .select("quantity")
-        .eq("buyer_id", user.id)
+        .from("carts")
+        .select("id, quantity")
+        .eq("user_id", user.id)
         .eq("product_id", productId)
-        .single() as { data: { quantity: number } | null }
+        .single() as { data: { id: string; quantity: number } | null }
 
       if (existing) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from("cart") as any)
+        (supabase.from("carts") as any)
           .update({ quantity: existing.quantity + 1 })
-          .eq("buyer_id", user.id)
-          .eq("product_id", productId)
+          .eq("id", existing.id)
         setShowToast("Quantity +1")
       }
     } else {
       // Add new
       await supabase
-        .from("cart")
+        .from("carts")
         .insert({
-          buyer_id: user.id,
+          user_id: user.id,
           product_id: productId,
           quantity: 1
         } as any)
