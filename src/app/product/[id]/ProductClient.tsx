@@ -627,7 +627,9 @@ export default function ProductClient() {
       query = query.is("size", null)
     }
     
-    const { data: existingCart, error: queryError } = await query.single()
+    const result = await query.single() as { data: { id: string; quantity: number } | null; error: any }
+    const existingCart = result.data
+    const queryError = result.error
 
     if (existingCart && !queryError) {
       // Update quantity - MUST await!
