@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import { supabase } from "@/lib/supabase"
 
 export default function CartPage() {
   const router = useRouter()
@@ -12,34 +13,103 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true)
 
   // Unique key for cart items that accounts for size
-  const getItemKey = (item: any) => `${item.productId}-${item.size}`
+  const getItemKey = (item: any) => `${item.product_id}-${item.size || 'no-size'}`
 
   useEffect(() => {
-    const items = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
-    setCartItems(items)
-    // Select all by default using the unique composite key
-    setSelectedIds(items.map((i: any) => getItemKey(i)))
-    setLoading(false)
+    fetchCart()
+    
+    const handler = () => fetchCart()
+    window.addEventListener("hstnlx-cart-updated", handler)
+    return () => window.removeEventListener("hstnlx-cart-updated", handler)
   }, [])
 
-  const updateQuantity = (itemKey: string, delta: number) => {
-    const newCart = cartItems.map(item => {
-      if (getItemKey(item) === itemKey) {
-        const newQty = Math.max(1, (item.qty || 1) + delta)
-        return { ...item, qty: newQty }
-      }
-      return item
-    })
-    setCartItems(newCart)
-    localStorage.setItem("hstnlx_cart", JSON.stringify(newCart))
-    window.dispatchEvent(new Event("hstnlx-cart-updated"))
+  const fetchCart = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      setLoading(false)
+      setCartItems([])
+      return
+    }
+
+    // Fetch from Supabase carts table with product details
+    const { data: cartData, error } = await supabase
+      .from("carts")
+      .select(`
+        id,
+        product_id,
+        size,
+        color,
+        quantity,
+        products (
+          id,
+          title,
+          price,
+          image_url,
+          user_id
+        )
+      `)
+      .eq("user_id", session.user.id)
+
+    if (error || !cartData) {
+      setLoading(false)
+      setCartItems([])
+      return
+    }
+
+    // Transform to match expected format
+    const items = cartData.map((item: any) => ({
+      id: item.id,
+      productId: item.product_id,
+      product_id: item.product_id,
+      size: item.size,
+      color: item.color,
+      qty: item.quantity,
+      quantity: item.quantity,
+      title: item.products?.title,
+      price: item.products?.price,
+      image: item.products?.image_url,
+      image_url: item.products?.image_url,
+      seller_id: item.products?.user_id
+    }))
+
+    setCartItems(items)
+    setSelectedIds(items.map((i: any) => getItemKey(i)))
+    setLoading(false)
   }
 
-  const removeItem = (itemKey: string) => {
-    const newCart = cartItems.filter(item => getItemKey(item) !== itemKey)
-    setCartItems(newCart)
+  const updateQuantity = async (itemKey: string, delta: number) => {
+    const item = cartItems.find(i => getItemKey(i) === itemKey)
+    if (!item) return
+    
+    const newQty = Math.max(1, (item.qty || 1) + delta)
+    
+    // Update in Supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from("carts") as any)
+      .update({ quantity: newQty })
+      .eq("id", item.id)
+    
+    // Update local state
+    setCartItems(prev => prev.map(i => 
+      getItemKey(i) === itemKey ? { ...i, qty: newQty, quantity: newQty } : i
+    ))
+  }
+
+  const removeItem = async (itemKey: string) => {
+    const item = cartItems.find(i => getItemKey(i) === itemKey)
+    if (!item) return
+    
+    // Delete from Supabase
+    await supabase
+      .from("carts")
+      .delete()
+      .eq("id", item.id)
+    
+    // Update local state
+    setCartItems(prev => prev.filter(i => getItemKey(i) !== itemKey))
     setSelectedIds(prev => prev.filter(k => k !== itemKey))
-    localStorage.setItem("hstnlx_cart", JSON.stringify(newCart))
+    
+    // Notify other components
     window.dispatchEvent(new Event("hstnlx-cart-updated"))
   }
 
