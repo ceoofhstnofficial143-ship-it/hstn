@@ -631,9 +631,9 @@ export default function ProductClient() {
 
     if (existingCart && !queryError) {
       // Update quantity - MUST await!
-      const { error: updateError } = await supabase
-        .from("carts")
-        .update({ quantity: existingCart.quantity + quantity } as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: updateError } = (supabase.from("carts") as any)
+        .update({ quantity: existingCart.quantity + quantity })
         .eq("id", existingCart.id)
       
       if (updateError) {
