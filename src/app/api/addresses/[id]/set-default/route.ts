@@ -7,7 +7,7 @@ async function setDefaultAddressHandler(req: NextRequest, { user }: any, { param
   const { id } = params;
 
   // Verify ownership
-  const { data: existingAddress, error: checkError } = await supabaseAdmin
+  const { data: existingAddress, error: checkError } = await (supabaseAdmin as any)
     .from('addresses')
     .select('user_id')
     .eq('id', id)
@@ -22,7 +22,7 @@ async function setDefaultAddressHandler(req: NextRequest, { user }: any, { param
   }
 
   // 1. Unset all current default addresses for the user
-  const { error: unsetError } = await supabaseAdmin
+  const { error: unsetError } = await (supabaseAdmin as any)
     .from('addresses')
     .update({ is_default: false })
     .eq('user_id', user.id);
@@ -32,7 +32,7 @@ async function setDefaultAddressHandler(req: NextRequest, { user }: any, { param
   }
 
   // 2. Set the selected address as default
-  const { data, error: setError } = await supabaseAdmin
+  const { data, error: setError } = await (supabaseAdmin as any)
     .from('addresses')
     .update({ is_default: true })
     .eq('id', id)

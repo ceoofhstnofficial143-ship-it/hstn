@@ -32,7 +32,7 @@ export default function TestUploadPage() {
             console.log('Starting simple test upload...')
 
             // Create product with minimal data to avoid conflicts
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("products")
                 .insert({
                     title: `Test Product ${Date.now()}`,

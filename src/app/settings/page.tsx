@@ -26,7 +26,7 @@ export default function SettingsPage() {
             setUser(user)
 
             // Fetch existing profile data
-            const { data: profile } = await supabase
+            const { data: profile } = await (supabase as any)
                 .from("profiles")
                 .select("full_name, phone, bio")
                 .eq("id", user.id)
@@ -49,7 +49,7 @@ export default function SettingsPage() {
         e.preventDefault()
         setSaving(true)
 
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from("profiles")
             .upsert({
                 id: user.id,

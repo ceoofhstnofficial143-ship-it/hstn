@@ -16,7 +16,7 @@ export default function RPCTestPage() {
             if (!user) throw new Error("Authentication Required. Sign in first.")
 
             // 🕵️ 1. SCOUT FOR REPLENISHED ASSET (Stock > 0 only)
-            const { data: products, error: scoutError } = await supabase
+            const { data: products, error: scoutError } = await (supabase as any)
                 .from("products")
                 .select("id, user_id, title, stock")
                 .gt("stock", 0) // ONLY FETCH ITEMS WITH AVAILABLE STOCK
@@ -30,7 +30,7 @@ export default function RPCTestPage() {
             console.log("SCOUTED ASSET:", realProduct)
 
             // 🛡️ 2. EXECUTE HARDENED ENGINE (V13.8+)
-            const { data, error } = await supabase.rpc("place_order_after_payment", {
+            const { data, error } = await (supabase as any).rpc("place_order_after_payment", {
                 p_cart: [
                     {
                         productId: realProduct.id,

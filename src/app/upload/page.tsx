@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import LiveCamera from "@/app/product/[id]/components/LiveCamera"
+import { compressImage, checkImageQuality, addWhiteBackground } from "@/lib/imageOptimizer"
 
 export default function UploadPage() {
   const router = useRouter()
@@ -15,7 +16,7 @@ export default function UploadPage() {
   const [description, setDescription] = useState("")
   const [price, setPrice] = useState("")
   const [category, setCategory] = useState("CO-ORD SETS")
-  const [stock, setStock] = useState(1)
+  const [stock] = useState(1)
   const [sku, setSku] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -28,9 +29,20 @@ export default function UploadPage() {
   const [modelHeight, setModelHeight] = useState("")
   const [modelWeight, setModelWeight] = useState("")
   const [modelSize, setModelSize] = useState("")
+  const [material, setMaterial] = useState("")
+  const [pattern, setPattern] = useState("")
+  const [sleeveType, setSleeveType] = useState("")
+  const [neckline, setNeckline] = useState("")
+  const [occasion, setOccasion] = useState("")
+  const [washCare, setWashCare] = useState("")
+  const [dispatchHours, setDispatchHours] = useState("")
+  const [returnWindowDays, setReturnWindowDays] = useState("")
+  const [packageWeight, setPackageWeight] = useState("")
+  const [codEnabled, setCodEnabled] = useState(true)
   
-  // Available sizes with stock
-  const [availableSizes, setAvailableSizes] = useState<{size: string; stock: number}[]>([])
+  // Variant matrix (size-level stock + price)
+  const [availableSizes, setAvailableSizes] = useState<{size: string; stock: number; price: number}[]>([])
+  const totalSizeStock = availableSizes.reduce((sum, s) => sum + Math.max(0, Number(s.stock || 0)), 0)
 
   const FIT_TYPES = [
     { label: "True to Size", value: "true_to_size" },
@@ -49,13 +61,24 @@ export default function UploadPage() {
     return `HSTNLX-${short}-${ts}`
   }
 
-  // Authenticated Media
-  const [photos, setPhotos] = useState<Blob[]>([])
+  // Unified Media Assets
+  const [selectedPhotos, setSelectedPhotos] = useState<Blob[]>([])
   const [video, setVideo] = useState<Blob | null>(null)
   const [showCamera, setShowCamera] = useState(false)
   const [mediaReady, setMediaReady] = useState(false)
-  const [standardImage, setStandardImage] = useState<File | null>(null)
-  const [uploadMode, setUploadMode] = useState<"authentication" | "standard">("authentication")
+  const [uploadMode, setUploadMode] = useState<"standard" | "high_trust">("standard")
+  const [qualityWarnings, setQualityWarnings] = useState<string[]>([])
+  const [processingIndices, setProcessingIndices] = useState<number[]>([])
+  const [submitErrors, setSubmitErrors] = useState<string[]>([])
+  const [draftToast, setDraftToast] = useState("")
+  const [hasDraftPrompt, setHasDraftPrompt] = useState(false)
+  const [pendingDraft, setPendingDraft] = useState<any>(null)
+  const PHOTO_SLOT_LABELS = ["Main", "Front", "Back", "Side", "Detail", "Fabric"]
+  const requiredPhotoSlotIndexes = [0, 1, 2]
+  const missingRequiredPhotoSlots = requiredPhotoSlotIndexes.filter((idx) => !selectedPhotos[idx])
+  const selectedVariants = availableSizes.filter((s) => s.stock > 0 && s.price > 0)
+
+  const draftStorageKey = user?.id ? `hstnlx_upload_draft_${user.id}` : ""
 
   const categories = [
     { name: "CO-ORD SETS", description: "Matching top & bottom outfits", slug: "coord_sets" },
@@ -63,6 +86,35 @@ export default function UploadPage() {
     { name: "CASUAL DRESSES", description: "Comfortable everyday dresses", slug: "casual_dresses" },
     { name: "KOREAN-STYLE FASHION", description: "K-fashion inspired outfits", slug: "korean_style" }
   ]
+  const CATEGORY_REQUIRED_ATTRS: Record<string, string[]> = {
+    "CO-ORD SETS": ["material", "pattern", "sleeveType", "occasion", "washCare"],
+    "TRENDY TOPS": ["material", "pattern", "sleeveType", "neckline", "washCare"],
+    "CASUAL DRESSES": ["material", "pattern", "sleeveType", "neckline", "occasion", "washCare"],
+    "KOREAN-STYLE FASHION": ["material", "pattern", "sleeveType", "occasion", "washCare"],
+  }
+  const attributeValueMap: Record<string, string> = {
+    material,
+    pattern,
+    sleeveType,
+    neckline,
+    occasion,
+    washCare,
+  }
+  const requiredAttrKeys = CATEGORY_REQUIRED_ATTRS[category] || []
+  const missingRequiredAttrs = requiredAttrKeys.filter((key) => !attributeValueMap[key]?.trim())
+  const listingChecks = [
+    { label: "Title has at least 12 characters", pass: title.trim().length >= 12 },
+    { label: "Description is added", pass: description.trim().length >= 20 },
+    { label: "Main + Front + Back photos added", pass: missingRequiredPhotoSlots.length === 0 },
+    { label: "At least one valid variant selected", pass: selectedVariants.length > 0 },
+    { label: "Total stock is greater than 0", pass: totalSizeStock > 0 },
+    { label: "Core measurements filled (Bust, Waist, Length)", pass: !!bust && !!waist && !!length },
+    { label: "Category required attributes completed", pass: missingRequiredAttrs.length === 0 },
+    { label: "Shipping settings completed", pass: !!dispatchHours && !!returnWindowDays && !!packageWeight },
+  ]
+  const passedChecks = listingChecks.filter((c) => c.pass).length
+  const qualityScore = Math.round((passedChecks / listingChecks.length) * 100)
+  const canPublish = !loading && qualityScore === 100
 
   useEffect(() => {
     const getSession = async () => {
@@ -74,7 +126,7 @@ export default function UploadPage() {
       setUser(data.session.user)
 
       // 🏛️ INSTITUTIONAL AUDIT: Block listing if not verified
-      const { data: kybData } = await supabase
+      const { data: kybData } = await (supabase as any)
         .from("seller_kyb")
         .select("is_verified")
         .eq("user_id", data.session.user.id)
@@ -90,84 +142,313 @@ export default function UploadPage() {
     getSession()
   }, [router])
 
-  const handleCameraComplete = (capturedPhotos: Blob[], capturedVideo: Blob) => {
-    setPhotos(capturedPhotos)
+  useEffect(() => {
+    if (!draftToast) return
+    const timer = setTimeout(() => setDraftToast(""), 1800)
+    return () => clearTimeout(timer)
+  }, [draftToast])
+
+  useEffect(() => {
+    if (!user?.id || !draftStorageKey) return
+    try {
+      const raw = localStorage.getItem(draftStorageKey)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === "object") {
+        setPendingDraft(parsed)
+        setHasDraftPrompt(true)
+      }
+    } catch {
+      // Ignore malformed drafts
+    }
+  }, [user?.id, draftStorageKey])
+
+  useEffect(() => {
+    if (!user?.id || !draftStorageKey || loading) return
+    const timer = setTimeout(() => {
+      const draftPayload = {
+        title,
+        description,
+        price,
+        category,
+        bust,
+        waist,
+        hips,
+        length,
+        sleeve,
+        modelHeight,
+        modelWeight,
+        modelSize,
+        fitType,
+        availableSizes,
+        material,
+        pattern,
+        sleeveType,
+        neckline,
+        occasion,
+        washCare,
+        dispatchHours,
+        returnWindowDays,
+        packageWeight,
+        codEnabled,
+        updatedAt: new Date().toISOString(),
+      }
+      localStorage.setItem(draftStorageKey, JSON.stringify(draftPayload))
+      setDraftToast("Draft auto-saved")
+    }, 1200)
+    return () => clearTimeout(timer)
+  }, [
+    user?.id,
+    draftStorageKey,
+    loading,
+    title,
+    description,
+    price,
+    category,
+    bust,
+    waist,
+    hips,
+    length,
+    sleeve,
+    modelHeight,
+    modelWeight,
+    modelSize,
+    fitType,
+    availableSizes,
+    material,
+    pattern,
+    sleeveType,
+    neckline,
+    occasion,
+    washCare,
+    dispatchHours,
+    returnWindowDays,
+    packageWeight,
+    codEnabled,
+  ])
+
+  const resumeDraft = () => {
+    if (!pendingDraft) return
+    setTitle(pendingDraft.title || "")
+    setDescription(pendingDraft.description || "")
+    setPrice(pendingDraft.price || "")
+    setCategory(pendingDraft.category || "CO-ORD SETS")
+    setBust(pendingDraft.bust || "")
+    setWaist(pendingDraft.waist || "")
+    setHips(pendingDraft.hips || "")
+    setLength(pendingDraft.length || "")
+    setSleeve(pendingDraft.sleeve || "")
+    setModelHeight(pendingDraft.modelHeight || "")
+    setModelWeight(pendingDraft.modelWeight || "")
+    setModelSize(pendingDraft.modelSize || "")
+    setFitType(pendingDraft.fitType || FIT_TYPES[0]?.value || "true_to_size")
+    setAvailableSizes(Array.isArray(pendingDraft.availableSizes) ? pendingDraft.availableSizes : [])
+    setMaterial(pendingDraft.material || "")
+    setPattern(pendingDraft.pattern || "")
+    setSleeveType(pendingDraft.sleeveType || "")
+    setNeckline(pendingDraft.neckline || "")
+    setOccasion(pendingDraft.occasion || "")
+    setWashCare(pendingDraft.washCare || "")
+    setDispatchHours(pendingDraft.dispatchHours || "")
+    setReturnWindowDays(pendingDraft.returnWindowDays || "")
+    setPackageWeight(pendingDraft.packageWeight || "")
+    setCodEnabled(typeof pendingDraft.codEnabled === "boolean" ? pendingDraft.codEnabled : true)
+    setHasDraftPrompt(false)
+    setDraftToast("Draft resumed")
+  }
+
+  const discardDraft = () => {
+    if (draftStorageKey) localStorage.removeItem(draftStorageKey)
+    setPendingDraft(null)
+    setHasDraftPrompt(false)
+    setDraftToast("Draft discarded")
+  }
+
+  const handleCameraComplete = async (capturedPhotos: Blob[], capturedVideo: Blob) => {
+    // Compress all captured photos
+    const compressed = await Promise.all(capturedPhotos.map(p => compressImage(p, 2048, 0.93)));
+    
+    // Check quality of primary photo
+    const quality = await checkImageQuality(compressed[0]);
+    setQualityWarnings(quality.warnings);
+
+    setSelectedPhotos(compressed)
     setVideo(capturedVideo)
     setMediaReady(true)
     setShowCamera(false)
+    setUploadMode("high_trust") // Flag as high trust since it was a live session
+  }
+
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    setLoading(true);
+    try {
+      const images = files.filter(f => f.type.startsWith("image/"));
+      const videos = files.filter(f => f.type.startsWith("video/"));
+
+      // Process Images
+      if (images.length > 0) {
+        const compressed = await Promise.all(
+          images.slice(0, 6).map(f => compressImage(f, 2048, 0.93))
+        );
+        
+        const qChecks = await Promise.all(compressed.map(p => checkImageQuality(p)));
+        const allWarnings = Array.from(new Set(qChecks.flatMap(q => q.warnings)));
+        setQualityWarnings(prev => Array.from(new Set([...prev, ...allWarnings])));
+
+        setSelectedPhotos(prev => [...prev, ...compressed].slice(0, 6));
+      }
+
+      // Process Video (Only one allowed for performance)
+      if (videos.length > 0) {
+        const selectedVideo = videos[0] as Blob;
+        // Basic size check for mobile safety
+        if (selectedVideo.size > 20 * 1024 * 1024) {
+             alert("Video too large. Please limit to 10-20MB for best conversion.");
+        } else {
+            setVideo(selectedVideo);
+        }
+      }
+
+      setMediaReady(true);
+    } catch (err) {
+      console.error("Media Processing Failure:", err);
+      alert("Asset processing failed. Ensure files are valid images or videos.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const applyBackgroundRemoval = async (index: number) => {
+    if (!selectedPhotos[index]) return;
+    
+    if (!confirm("Initialize Premium Background Optimization for this asset?")) return;
+
+    setProcessingIndices(prev => [...prev, index]);
+    try {
+        const reader = new FileReader();
+        reader.readAsDataURL(selectedPhotos[index]);
+        reader.onloadend = async () => {
+            const base64data = reader.result as string;
+            
+            const res = await fetch("/api/remove-bg", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ imageUrl: base64data })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                const whiteBgImage = await addWhiteBackground(data.image);
+                
+                const response = await fetch(whiteBgImage);
+                const blob = await response.blob();
+                
+                setSelectedPhotos(prev => {
+                    const next = [...prev];
+                    next[index] = blob;
+                    return next;
+                });
+                
+                alert("Optimization Complete.");
+            } else {
+                alert(`Failed: ${data.message || "API Error"}`);
+            }
+            setProcessingIndices(prev => prev.filter(i => i !== index));
+        };
+    } catch (err) {
+        console.error("BG Removal Error:", err);
+        alert("Optimization failed.");
+        setProcessingIndices(prev => prev.filter(i => i !== index));
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
+    setSubmitErrors([])
+
+    const errors: string[] = []
     
     // Validate title length
     if (title.trim().length < 12) {
-      alert("Product title must be at least 12 characters long. Examples: 'Korean Oversized Hoodie', 'Trendy Summer Casual Dress'")
-      return
+      errors.push("Product title must be at least 12 characters long.")
     }
     
-    if (!mediaReady) {
-      alert("Please complete the authentication protocol with all 6 photos and the fabric motion video.")
+    // Validate required image slots (Main + Front + Back)
+    if (missingRequiredPhotoSlots.length > 0) {
+      const missingLabels = missingRequiredPhotoSlots.map((idx) => PHOTO_SLOT_LABELS[idx]).join(", ")
+      errors.push(`Mandatory image slots missing: ${missingLabels}.`)
+    }
+
+    // Enforce seller-selected sizes only
+    if (availableSizes.length === 0) {
+      errors.push("Please select at least one available size before publishing.")
+    }
+
+    if (totalSizeStock <= 0) {
+      errors.push("Total size stock must be greater than 0.")
+    }
+
+    const invalidVariants = availableSizes.filter((s) => s.stock <= 0 || s.price <= 0)
+    if (invalidVariants.length > 0) {
+      errors.push("Each selected size must have stock > 0 and price > 0.")
+    }
+
+    if (!description.trim() || description.trim().length < 20) {
+      errors.push("Description must be at least 20 characters long.")
+    }
+
+    if (!bust || !waist || !length) {
+      errors.push("Bust, Waist, and Length measurements are required.")
+    }
+
+    if (missingRequiredAttrs.length > 0) {
+      errors.push(`Missing category attributes: ${missingRequiredAttrs.join(", ")}.`)
+    }
+
+    if (!dispatchHours || !returnWindowDays || !packageWeight) {
+      errors.push("Shipping settings required: dispatch time, return window, package weight.")
+    }
+
+    if (errors.length > 0) {
+      setSubmitErrors(errors)
       return
     }
 
     setLoading(true)
     let imageUrl = ""
     let videoUrl = ""
-    let imageUrls: string[] = [] // Store all image URLs for carousel
+    let imageUrls: string[] = []
 
-    // Upload Process
-    if (uploadMode === "authentication") {
-      // Upload All 6 Photos
-      for (let i = 0; i < photos.length; i++) {
-        if (photos[i]) {
-          const fileName = `${user.id}-${Date.now()}-${i}.jpg`
-          const { error: uploadError } = await supabase.storage
-            .from("product-images")
-            .upload(fileName, photos[i])
+    // Upload Optimized Photos
+    for (let i = 0; i < selectedPhotos.length; i++) {
+        const slotLabel = (PHOTO_SLOT_LABELS[i] || `Image${i + 1}`).toLowerCase()
+        const fileName = `${user.id}-${Date.now()}-${slotLabel}-${i}.jpg`
+        const { error: uploadError } = await supabase.storage
+          .from("product-images")
+          .upload(fileName, selectedPhotos[i])
 
-          if (!uploadError) {
-            const { data } = supabase.storage.from("product-images").getPublicUrl(fileName)
-            imageUrls.push(data.publicUrl)
-            if (i === 0) imageUrl = data.publicUrl // Main image
-          }
+        if (!uploadError) {
+          const { data } = supabase.storage.from("product-images").getPublicUrl(fileName)
+          imageUrls.push(data.publicUrl)
+          if (i === 0) imageUrl = data.publicUrl
         }
-      }
+    }
 
-      // Upload Fabric Video
-      if (video) {
-        const fileName = `${user.id}-fabric-${Date.now()}.webm`
+    // Optional Video Upload
+    if (video) {
+        const fileName = `${user.id}-verified-${Date.now()}.webm`
         const { error: videoError } = await supabase.storage
           .from("videos")
           .upload(fileName, video)
 
-        if (videoError) {
-          alert(`Video upload failed: ${videoError.message}`)
-          setLoading(false)
-          return
+        if (!videoError) {
+          const { data } = supabase.storage.from("videos").getPublicUrl(fileName)
+          videoUrl = data.publicUrl
         }
-        
-        const { data } = supabase.storage.from("videos").getPublicUrl(fileName)
-        videoUrl = data.publicUrl
-      } else {
-        alert("No video captured. Please complete the 8-second fabric verification.")
-        setLoading(false)
-        return
-      }
-    } else {
-      // Standard Upload
-      if (standardImage) {
-        const fileName = `std-${user.id}-${Date.now()}.jpg`
-        const { error: uploadError } = await supabase.storage
-          .from("product-images")
-          .upload(fileName, standardImage)
-
-        if (!uploadError) {
-          const { data } = supabase.storage.from("product-images").getPublicUrl(fileName)
-          imageUrl = data.publicUrl
-        }
-      }
     }
 
     const finalSku = sku || buildSku(user.id)
@@ -264,9 +545,9 @@ export default function UploadPage() {
       return true
     }
 
-    // HARD BACKEND RULE: Enforce Authenticated Upload (Fabric Video, Size)
-    if (uploadMode === "authentication" && (!videoUrl || !bust || !waist || !length)) {
-      alert("HARD BLOCK: Authentication Protocol failed. Video Verification and Numeric Measurements are strictly required.")
+    // Final Verification Check
+    if (!imageUrl || !bust || !waist || !length) {
+      alert("Draft Protocol Failed: Critical measurements (Bust, Waist, Length) and images are required to launch.")
       setLoading(false)
       return
     }
@@ -283,15 +564,15 @@ export default function UploadPage() {
       const flags: string[] = []
 
       // Check 1: Image consistency (same item across photos)
-      if (photos.length >= 2) {
-        const imageConsistency = await checkImageConsistency(photos)
+      if (selectedPhotos.length >= 2) {
+        const imageConsistency = await checkImageConsistency(selectedPhotos)
         if (!imageConsistency.isConsistent) {
           flags.push("Inconsistent images detected - may be different products")
         }
       }
 
       // Check 2: Reverse image search (stolen images)
-      const reverseImageCheck = await checkReverseImageSearch(photos[0])
+      const reverseImageCheck = await checkReverseImageSearch(selectedPhotos[0])
       if (reverseImageCheck.foundDuplicates) {
         flags.push("Duplicate images found - may be stolen photos")
       }
@@ -299,7 +580,7 @@ export default function UploadPage() {
       // Check 3: Video quality validation (already implemented above)
 
       // Check 4: Metadata validation
-      const metadataCheck = await checkImageMetadata(photos)
+      const metadataCheck = await checkImageMetadata(selectedPhotos)
       if (!metadataCheck.hasValidMetadata) {
         flags.push("Missing camera metadata - may be downloaded images")
       }
@@ -336,7 +617,7 @@ export default function UploadPage() {
       const imageHash = await generateImageHash(photo)
       
       // Check against existing product images (simplified)
-      const { data: existingProducts } = await supabase
+      const { data: existingProducts } = await (supabase as any)
         .from("products")
         .select("image_url")
         .limit(100) // Check recent products only
@@ -345,7 +626,7 @@ export default function UploadPage() {
       if (existingProducts) {
         // This would compare hashes in a real implementation
         // For demo, we'll just check if we have any existing products
-        duplicates.push(...existingProducts.map(p => p.image_url).filter(Boolean))
+        duplicates.push(...existingProducts.map((p: any) => p.image_url).filter(Boolean))
       }
 
       return { 
@@ -398,7 +679,7 @@ export default function UploadPage() {
     let adminStatus = 'approved'
 
     // Ensure SKU is globally unique before hitting the UNIQUE constraint
-    const { data: existingSku, error: skuCheckError } = await supabase
+    const { data: existingSku, error: skuCheckError } = await (supabase as any)
       .from("products")
       .select("id")
       .eq("sku", finalSku)
@@ -419,7 +700,7 @@ export default function UploadPage() {
     // Store all image URLs for carousel
     const allImageUrls = imageUrls.length > 0 ? imageUrls : [imageUrl]
 
-    const { data: newProduct, error } = await supabase
+    const { data: newProduct, error } = await (supabase as any)
       .from("products")
       .insert([
         {
@@ -431,14 +712,27 @@ export default function UploadPage() {
           additional_images: allImageUrls.slice(1), // Store remaining 5 images
           video_url: videoUrl,
           user_id: user.id,
-          stock,
+          stock: totalSizeStock,
           category,
           color_verified: true, // Mandatory
           measurements: { bust, waist, hips, length, sleeve },
-          model_info: { height: modelHeight, weight: modelWeight, size: modelSize },
+          model_info: {
+            height: modelHeight,
+            weight: modelWeight,
+            size: modelSize,
+            attributes: { material, pattern, sleeveType, neckline, occasion, washCare },
+            shipping: {
+              dispatchHours: Number(dispatchHours || 0),
+              returnWindowDays: Number(returnWindowDays || 0),
+              packageWeight: Number(packageWeight || 0),
+              codEnabled
+            }
+          },
           fit_type: fitType,
           size_verified: true,
-          admin_status: adminStatus
+          admin_status: adminStatus,
+          is_boosted: true,
+          boost_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         },
       ])
       .select('id')
@@ -447,41 +741,25 @@ export default function UploadPage() {
     if (error) {
       alert(error.message)
     } else if (newProduct) {
-      // Synchronize with product_variants table - Insert all available sizes
-      if (availableSizes.length > 0) {
-        const variantInserts = availableSizes.map(s => ({
-          product_id: newProduct.id,
-          size: s.size,
-          stock: s.stock,
-          price: Number(price),
-          color: "STANDARD"
-        }))
-        
-        const { error: variantError } = await supabase
-          .from("product_variants")
-          .insert(variantInserts)
+      // Synchronize with product_variants table - only seller-selected sizes
+      const variantInserts = availableSizes.map(s => ({
+        product_id: newProduct.id,
+        size: s.size,
+        stock: s.stock,
+        price: Number(s.price),
+        color: "STANDARD"
+      }))
+      
+      const { error: variantError } = await (supabase as any)
+        .from("product_variants")
+        .insert(variantInserts)
 
-        if (variantError) {
-          console.error("Variant Sync Protocol Failed:", variantError.message)
-        }
-      } else {
-        // Fallback: Create default variant with model size or S
-        const { error: variantError } = await supabase
-          .from("product_variants")
-          .insert([{
-            product_id: newProduct.id,
-            size: modelSize || "S",
-            stock: stock,
-            price: Number(price),
-            color: "STANDARD"
-          }])
-
-        if (variantError) {
-          console.error("Variant Sync Protocol Failed:", variantError.message)
-        }
+      if (variantError) {
+        console.error("Variant Sync Protocol Failed:", variantError.message)
       }
 
       alert("Authenticated Listing Published Successfully 🏛️")
+      if (draftStorageKey) localStorage.removeItem(draftStorageKey)
       router.push("/seller/dashboard")
     }
     setLoading(false)
@@ -508,6 +786,33 @@ export default function UploadPage() {
           </p>
         </header>
 
+        {hasDraftPrompt && (
+          <div className="mb-8 p-4 rounded-2xl border border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-primary">Saved draft found</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted mt-1">
+                Resume previous draft? (media files are not stored for security)
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={resumeDraft}
+                className="px-4 py-2 rounded-xl bg-black text-white text-[10px] font-black uppercase tracking-widest"
+              >
+                Yes, Resume
+              </button>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-slate-400"
+              >
+                No, Discard
+              </button>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-16">
           {/* Media Authentication Grid (LEFT) */}
           <div className="lg:col-span-5 space-y-10">
@@ -517,84 +822,151 @@ export default function UploadPage() {
               </div>
             </div>
 
-            <div className={`luxury-card aspect-[4/5] border-dashed border-2 flex flex-col items-center justify-center p-8 transition-smooth bg-accent/5 ${mediaReady || standardImage ? 'border-primary/50' : 'border-border'}`}>
-              {uploadMode === "authentication" ? (
-                mediaReady ? (
+            <div className="p-4 rounded-2xl border border-slate-200 bg-white">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Listing Quality Score</p>
+                <p className={`text-sm font-black ${qualityScore >= 85 ? "text-green-600" : qualityScore >= 60 ? "text-amber-600" : "text-red-600"}`}>{qualityScore}/100</p>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 overflow-hidden mb-3">
+                <div className={`h-full transition-all duration-500 ${qualityScore >= 85 ? "bg-green-500" : qualityScore >= 60 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${qualityScore}%` }} />
+              </div>
+              <div className="space-y-1.5">
+                {listingChecks.map((check) => (
+                  <div key={check.label} className="flex items-center gap-2">
+                    <span className={`text-xs ${check.pass ? "text-green-600" : "text-red-500"}`}>{check.pass ? "✓" : "✕"}</span>
+                    <p className={`text-[9px] font-bold uppercase tracking-wider ${check.pass ? "text-green-700" : "text-slate-500"}`}>{check.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={`luxury-card aspect-[4/5] border-dashed border-2 flex flex-col items-center justify-center p-8 transition-smooth bg-accent/5 ${selectedPhotos.length > 0 ? 'border-primary/50' : 'border-border'}`}>
+              {selectedPhotos.length > 0 ? (
                   <div className="grid grid-cols-2 gap-4 w-full h-full overflow-y-auto p-2 no-scrollbar">
-                    {photos.map((blob, i) => (
-                      <div key={i} className="aspect-square rounded-xl overflow-hidden relative border border-white/10">
+                    {selectedPhotos.map((blob, i) => (
+                      <div key={i} className="aspect-square rounded-xl overflow-hidden relative border border-white/10 group">
                         <img src={URL.createObjectURL(blob)} className="w-full h-full object-cover" alt="" />
-                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-[8px] text-white px-2 py-0.5 rounded-full uppercase font-bold">Step {i + 1}</div>
+                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-[8px] text-white px-2 py-0.5 rounded-full uppercase font-bold">
+                          {PHOTO_SLOT_LABELS[i] || `Image ${i + 1}`}
+                        </div>
+                        
+                         {/* MAGICAL BG REMOVAL TRIGGER FOR EVERY ASSET */}
+                         {!processingIndices.includes(i) ? (
+                            <button
+                                type="button"
+                                onClick={() => applyBackgroundRemoval(i)}
+                                className="absolute bottom-2 left-2 bg-primary text-black text-[7px] font-black uppercase px-2 py-1 rounded-sm shadow-xl hover:scale-105 transition-all animate-in slide-in-from-left-2"
+                            >
+                                ✨ Magic Fix
+                            </button>
+                         ) : (
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center">
+                                <span className="text-[8px] text-white font-black uppercase tracking-widest animate-pulse">Processing...</span>
+                            </div>
+                         )}
+
+                        <button 
+                          type="button"
+                          onClick={() => setSelectedPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                          className="absolute top-2 right-2 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >✕</button>
                       </div>
                     ))}
-                    <div className="aspect-square rounded-xl overflow-hidden relative border border-primary/20 bg-primary/5 flex items-center justify-center">
-                      <span className="text-[10px] text-primary font-bold uppercase tracking-widest">Video ✓</span>
-                    </div>
+
+                    {video && (
+                        <div className="aspect-square rounded-xl overflow-hidden relative border border-primary/30 group">
+                           <video 
+                             src={URL.createObjectURL(video)} 
+                             className="w-full h-full object-cover" 
+                             autoPlay loop muted playsInline
+                           />
+                           <div className="absolute top-2 left-2 bg-primary/80 backdrop-blur-md text-[8px] text-black px-2 py-0.5 rounded-full uppercase font-black">Trusted Motion 🎥</div>
+                           <button 
+                             type="button"
+                             onClick={() => setVideo(null)}
+                             className="absolute top-2 right-2 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                           >✕</button>
+                        </div>
+                    )}
+
+                    {selectedPhotos.length < 6 && (
+                       <label className="aspect-square rounded-xl border border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-black/5 transition-all">
+                          <span className="text-xl">+</span>
+                          <span className="text-[8px] font-bold uppercase">Add Photo</span>
+                          <input type="file" multiple accept="image/*,video/*" onChange={handleGalleryUpload} className="hidden" />
+                       </label>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center">
                     <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6 border border-primary/20">
                       <span className="text-3xl">🛡️</span>
                     </div>
-                    <p className="text-caption font-bold uppercase tracking-widest text-foreground">Protocol Mode</p>
-                    <p className="text-[10px] text-muted/60 mt-4 leading-relaxed max-w-[200px] mx-auto uppercase">
-                      Required for "Gold Verified" Badge <br /> **LIVE SESSION ONLY**
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setShowCamera(true)}
-                      className="luxury-button mt-8 !py-3 !px-8 !text-[10px] !bg-primary !text-black border-none"
-                    >
-                      Authenticate Now
-                    </button>
+                    <p className="text-caption font-bold uppercase tracking-widest text-foreground">Mission Critical Media</p>
+                    <div className="flex flex-col gap-4 mt-8">
+                       <button
+                         type="button"
+                         onClick={() => setShowCamera(true)}
+                         className="luxury-button !py-4 !px-8 !text-[10px] !bg-primary !text-black border-none"
+                       >
+                         Launch Trusted Camera
+                       </button>
+                       <div className="flex items-center gap-4">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="text-[8px] font-bold text-muted">OR</span>
+                          <div className="h-px flex-1 bg-border" />
+                       </div>
+                       <label className="luxury-button !bg-foreground !text-background !py-4 !px-8 !text-[10px] cursor-pointer">
+                          Select from Gallery
+                          <input type="file" multiple accept="image/*,video/*" onChange={handleGalleryUpload} className="hidden" />
+                       </label>
+                    </div>
 
-                    <div className="mt-8 p-6 bg-primary/5 border border-primary/20 rounded-2xl text-left">
-                      <p className="text-[9px] uppercase tracking-[0.2em] text-primary font-bold mb-2">Color Accuracy Protocol 🎨</p>
+                    <div className="mt-12 p-6 bg-primary/5 border border-primary/20 rounded-2xl text-left">
+                      <p className="text-[9px] uppercase tracking-[0.2em] text-primary font-bold mb-2">Quality Protocol 🎨</p>
                       <p className="text-[8px] text-muted uppercase tracking-widest leading-relaxed">
-                        Natural light reference is mandatory. AI filters or heavy grading are strictly restricted. Violation triggers Trust Index penalties.
+                        • Use Plain Background for higher visibility <br />
+                        • Natural lighting maximizes conversion <br />
+                        • Mandatory slots: Main + Front + Back
                       </p>
-                      <p className="text-[9px] text-muted uppercase tracking-widest px-8 mt-2">Maximum file size: 50MB</p>
                     </div>
                   </div>
-                )
-              ) : (
-                <div className="text-center w-full">
-                  {standardImage ? (
-                    <div className="w-full h-full relative group">
-                      <img src={URL.createObjectURL(standardImage)} className="w-full h-64 object-cover rounded-2xl mb-4" />
-                      <button
-                        type="button"
-                        onClick={() => setStandardImage(null)}
-                        className="text-[10px] uppercase font-bold text-red-500"
-                      >
-                        Remove Image
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mx-auto mb-6">
-                        <span className="text-2xl">📸</span>
-                      </div>
-                      <p className="text-caption font-bold uppercase tracking-widest mb-4">File Upload</p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setStandardImage(e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="std-upload"
-                      />
-                      <label
-                        htmlFor="std-upload"
-                        className="luxury-button !bg-foreground !text-background !py-3 !px-8 !text-[10px] cursor-pointer"
-                      >
-                        Select Piece Photo
-                      </label>
-                      <p className="text-[9px] text-muted mt-6 uppercase tracking-widest px-8">Note: Standard listings do not receive the Gold Trust badge.</p>
-                    </>
-                  )}
-                </div>
-              )}
+                )}
             </div>
+
+            {missingRequiredPhotoSlots.length > 0 && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1">Mandatory image slots pending</p>
+                <p className="text-[9px] text-amber-700/80 font-bold uppercase tracking-widest">
+                  Missing: {missingRequiredPhotoSlots.map((idx) => PHOTO_SLOT_LABELS[idx]).join(", ")}
+                </p>
+              </div>
+            )}
+
+            {qualityWarnings.length > 0 && (
+               <div className="mt-4 p-4 bg-yellow-50 border border-yellow-100 rounded-2xl animate-in slide-in-from-top-2">
+                 <div className="flex gap-3">
+                   <span className="text-sm">⚠️</span>
+                   <div className="space-y-1">
+                     <p className="text-[10px] font-black uppercase tracking-widest text-yellow-800">Quality Intelligence Warning</p>
+                     {qualityWarnings.map((w, i) => (
+                       <p key={i} className="text-[9px] text-yellow-700/80 font-bold uppercase tracking-widest leading-relaxed">• {w}</p>
+                     ))}
+                   </div>
+                 </div>
+               </div>
+            )}
+
+            {submitErrors.length > 0 && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-2xl">
+                <p className="text-[10px] font-black uppercase tracking-widest text-red-700 mb-2">Fix Before Publish</p>
+                <div className="space-y-1">
+                  {submitErrors.map((err, i) => (
+                    <p key={`${err}-${i}`} className="text-[9px] text-red-700/90 font-bold uppercase tracking-widest">• {err}</p>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {mediaReady && (
               <button
@@ -670,11 +1042,12 @@ export default function UploadPage() {
                     <input
                       required
                       type="number"
-                      min={1}
-                      value={stock}
-                      className="w-full bg-accent/30 border border-transparent rounded-xl px-6 py-4 text-body focus:bg-white focus:border-primary outline-none transition-smooth"
-                      onChange={(e) => setStock(Number(e.target.value))}
+                      min={0}
+                      value={totalSizeStock}
+                      readOnly
+                      className="w-full bg-accent/30 border border-transparent rounded-xl px-6 py-4 text-body outline-none transition-smooth text-muted"
                     />
+                    <p className="text-[9px] text-muted mt-2 uppercase tracking-widest">Auto-calculated from selected size stock.</p>
                   </div>
                 </div>
 
@@ -686,6 +1059,52 @@ export default function UploadPage() {
                     className="w-full bg-accent/30 border border-transparent rounded-xl px-6 py-4 text-body h-32 focus:bg-white focus:border-primary outline-none transition-smooth resize-none"
                     onChange={(e) => setDescription(e.target.value)}
                   />
+                </div>
+
+                <div className="pt-8 border-t border-border space-y-6">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-[0.4em] text-primary font-bold">Category Compliance Attributes</span>
+                    <p className="text-[8px] text-muted uppercase tracking-widest mt-2">
+                      Required for {category}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <input value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="Material (e.g. Cotton Blend)" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                    <input value={pattern} onChange={(e) => setPattern(e.target.value)} placeholder="Pattern (e.g. Solid, Floral)" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                    <input value={sleeveType} onChange={(e) => setSleeveType(e.target.value)} placeholder="Sleeve Type" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                    <input value={neckline} onChange={(e) => setNeckline(e.target.value)} placeholder="Neckline" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                    <input value={occasion} onChange={(e) => setOccasion(e.target.value)} placeholder="Occasion (e.g. Casual, Party)" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                    <input value={washCare} onChange={(e) => setWashCare(e.target.value)} placeholder="Wash Care (e.g. Machine Wash Cold)" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                  </div>
+                  {missingRequiredAttrs.length > 0 && (
+                    <p className="text-[9px] text-amber-700 font-bold uppercase tracking-widest">
+                      Missing required attributes: {missingRequiredAttrs.join(", ")}
+                    </p>
+                  )}
+                </div>
+
+                <div className="pt-8 border-t border-border space-y-6">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-[0.4em] text-primary font-bold">Shipping & Return Settings</span>
+                    <p className="text-[8px] text-muted uppercase tracking-widest mt-2">
+                      Required before publish
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <input value={dispatchHours} onChange={(e) => setDispatchHours(e.target.value)} type="number" min="1" placeholder="Dispatch (hours)" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                    <input value={returnWindowDays} onChange={(e) => setReturnWindowDays(e.target.value)} type="number" min="1" placeholder="Return window (days)" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                    <input value={packageWeight} onChange={(e) => setPackageWeight(e.target.value)} type="number" min="0.1" step="0.1" placeholder="Package weight (kg)" className="w-full bg-accent/20 border border-transparent rounded-xl px-4 py-3 text-[12px] font-bold outline-none focus:border-primary focus:bg-white transition-smooth" />
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-accent/20">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Cash on Delivery</p>
+                    <button
+                      type="button"
+                      onClick={() => setCodEnabled(v => !v)}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${codEnabled ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-600"}`}
+                    >
+                      {codEnabled ? "Enabled" : "Disabled"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* SIZE RELIABILITY FRAMEWORK SECTION */}
@@ -709,7 +1128,7 @@ export default function UploadPage() {
                       <div key={m.label}>
                         <label className="text-[9px] uppercase tracking-widest font-bold block mb-2 text-muted">{m.label}</label>
                         <input
-                          required={uploadMode === "authentication"}
+                          required={uploadMode === "high_trust"}
                           type="number"
                           placeholder="--"
                           value={m.val}
@@ -742,7 +1161,7 @@ export default function UploadPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="relative group">
                           <input
-                            required={uploadMode === "authentication"}
+                            required={uploadMode === "high_trust"}
                             type="number"
                             placeholder="Ht"
                             value={modelHeight}
@@ -786,8 +1205,8 @@ export default function UploadPage() {
                       
                       {/* Available Sizes Selection */}
                       <div className="space-y-4 pt-6 border-t border-border mt-6">
-                        <label className="text-[10px] uppercase tracking-widest font-bold text-muted block">Available Sizes & Stock</label>
-                        <p className="text-[8px] text-muted uppercase tracking-widest">Click sizes you have and enter stock quantity</p>
+                        <label className="text-[10px] uppercase tracking-widest font-bold text-muted block">Variant Matrix (Size, Stock, Price)</label>
+                        <p className="text-[8px] text-muted uppercase tracking-widest">Select sizes, then set stock and selling price for each size</p>
                         <div className="space-y-3">
                           {["XS", "S", "M", "L", "XL", "XXL"].map((size) => {
                             const existing = availableSizes.find(s => s.size === size)
@@ -799,7 +1218,7 @@ export default function UploadPage() {
                                     if (existing) {
                                       setAvailableSizes(availableSizes.filter(s => s.size !== size))
                                     } else {
-                                      setAvailableSizes([...availableSizes, { size, stock: 1 }])
+                                      setAvailableSizes([...availableSizes, { size, stock: 1, price: Number(price) || 0 }])
                                     }
                                   }}
                                   className={`w-16 py-2 rounded-lg border text-[10px] font-bold uppercase transition-smooth ${
@@ -823,7 +1242,20 @@ export default function UploadPage() {
                                           s.size === size ? { ...s, stock: newStock } : s
                                         ))
                                       }}
-                                      className="w-20 bg-accent/20 border-none rounded-lg px-3 py-2 text-[11px] font-bold text-center outline-none focus:ring-1 ring-primary"
+                                      className="w-16 bg-accent/20 border-none rounded-lg px-2 py-2 text-[11px] font-bold text-center outline-none focus:ring-1 ring-primary"
+                                    />
+                                    <span className="text-[9px] uppercase tracking-widest text-muted">₹</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={existing.price}
+                                      onChange={(e) => {
+                                        const newPrice = parseInt(e.target.value) || 0
+                                        setAvailableSizes(availableSizes.map(s =>
+                                          s.size === size ? { ...s, price: newPrice } : s
+                                        ))
+                                      }}
+                                      className="w-24 bg-accent/20 border-none rounded-lg px-2 py-2 text-[11px] font-bold text-center outline-none focus:ring-1 ring-primary"
                                     />
                                   </div>
                                 )}
@@ -840,13 +1272,18 @@ export default function UploadPage() {
 
             <button
               type="submit"
-              disabled={loading}
-              className={`luxury-button w-full uppercase tracking-[0.2em] font-bold !text-sm ${loading ? 'opacity-50' : ''}`}
+              disabled={!canPublish}
+              className={`luxury-button w-full uppercase tracking-[0.2em] font-bold !text-sm ${canPublish ? '' : 'opacity-50 cursor-not-allowed'}`}
             >
-              {loading ? "Publishing Transaction..." : "Authenticate & Publish 🛡️"}
+              {loading ? "Publishing Transaction..." : canPublish ? "Authenticate & Publish 🛡️" : "Complete Quality Checklist to Publish"}
             </button>
           </div>
         </form>
+      </div>
+      <div className={`fixed left-1/2 -translate-x-1/2 bottom-8 z-[180] transition-all duration-300 ${draftToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+        <div className="px-4 py-2 rounded-full bg-black text-white text-[11px] font-black uppercase tracking-wider shadow-xl">
+          {draftToast}
+        </div>
       </div>
     </main>
   )

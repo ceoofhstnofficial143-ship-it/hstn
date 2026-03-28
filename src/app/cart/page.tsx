@@ -195,6 +195,22 @@ export default function CartPage() {
                    <h3 className="text-3xl font-black italic uppercase tracking-tighter mt-2">Manifest Summary</h3>
                 </div>
 
+                {/* 📦 LOGISTICS INCENTIVE PROTOCOL */}
+                <div className="p-6 bg-white/5 rounded-3xl border border-white/10 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-primary">Logistics Bonus</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white/40">
+                      {total >= 3000 ? 'Unlocked: Free Deployment' : `₹${(Math.max(0, 3000 - total)).toLocaleString()} to unlock Free Shipping`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-1000 ease-out"
+                      style={{ width: `${Math.min(100, (total / 3000) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-6">
                    <div className="flex justify-between items-center py-4 border-b border-white/5">
                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Authorized Pieces</span>
@@ -221,6 +237,25 @@ export default function CartPage() {
                      <span>Initialize Acquisition</span>
                      <span className="group-hover:translate-x-2 transition-transform">→</span>
                    </button>
+                   
+                   {/* 🛡️ BUYER PROTECTION REGISTRY */}
+                   <div className="p-6 bg-white/5 rounded-3xl border border-white/10 space-y-4">
+                      <div className="flex items-center gap-3">
+                         <span className="text-lg">🛡️</span>
+                         <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white">Escrow Guarantee Active</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                         <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                            <p className="text-[7px] font-black uppercase tracking-widest text-primary mb-1">Return Protocol</p>
+                            <p className="text-[7px] text-white/50 uppercase tracking-widest">7-Day Inspection</p>
+                         </div>
+                         <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                            <p className="text-[7px] font-black uppercase tracking-widest text-primary mb-1">Authentic</p>
+                            <p className="text-[7px] text-white/50 uppercase tracking-widest">Verified Assets</p>
+                         </div>
+                      </div>
+                   </div>
+
                    <p className="text-[7px] text-center text-white/30 uppercase tracking-[0.3em] leading-relaxed">
                      By initializing, you confirm adherence to the <br /> HSTNLX Global Trust Protocol.
                    </p>

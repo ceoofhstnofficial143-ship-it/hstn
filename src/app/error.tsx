@@ -13,6 +13,30 @@ export default function Error({
   useEffect(() => {
     // Log the error to an analytics service
     console.error(error)
+    try {
+      const payload = {
+        event_type: "ui_error_boundary",
+        source: "app_error_component",
+        status: "failed",
+        metadata: {
+          message: error?.message,
+          digest: error?.digest,
+          stack: error?.stack?.split("\n").slice(0, 3).join("\n"),
+          path: typeof window !== "undefined" ? window.location.pathname : "",
+        },
+      }
+      const body = JSON.stringify(payload)
+      if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+        navigator.sendBeacon("/api/log-client-event", new Blob([body], { type: "application/json" }))
+      } else {
+        fetch("/api/log-client-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive: true,
+        })
+      }
+    } catch {}
   }, [error])
 
   return (

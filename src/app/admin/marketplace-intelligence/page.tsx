@@ -18,16 +18,16 @@ export default function MarketplaceIntelligence() {
         setLoading(true)
         
         // 1. Fetch Aggregates
-        const { count: ordersCount } = await supabase.from("orders").select("*", { count: 'exact', head: true })
-        const { count: eventsCount } = await supabase.from("system_events").select("*", { count: 'exact', head: true })
-        const { count: payoutsCount } = await supabase.from("seller_payouts").select("*", { count: 'exact', head: true })
+        const { count: ordersCount } = await (supabase as any).from("orders").select("*", { count: 'exact', head: true })
+        const { count: eventsCount } = await (supabase as any).from("system_events").select("*", { count: 'exact', head: true })
+        const { count: payoutsCount } = await (supabase as any).from("seller_payouts").select("*", { count: 'exact', head: true })
         
-        const { data: revData } = await supabase.from("orders").select("total_price")
-        const totalRevenue = revData?.reduce((acc, o) => acc + (o.total_price || 0), 0) || 0
+        const { data: revData } = await (supabase as any).from("orders").select("total_price")
+        const totalRevenue = revData?.reduce((acc: number, o: any) => acc + (o.total_price || 0), 0) || 0
 
         // 2. Fetch Recent Activities
-        const { data: recentEvents } = await supabase.from("system_events").select("*").order("created_at", { ascending: false }).limit(10)
-        const { data: recentOrders } = await supabase.from("orders").select("*, profiles!orders_seller_id_fkey(username)").order("created_at", { ascending: false }).limit(5)
+        const { data: recentEvents } = await (supabase as any).from("system_events").select("*").order("created_at", { ascending: false }).limit(10)
+        const { data: recentOrders } = await (supabase as any).from("orders").select("*, profiles!orders_seller_id_fkey(username)").order("created_at", { ascending: false }).limit(5)
 
         setStats({ orders: ordersCount || 0, revenue: totalRevenue, events: eventsCount || 0, payouts: payoutsCount || 0 })
         if (recentEvents) setEvents(recentEvents)

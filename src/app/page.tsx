@@ -162,13 +162,13 @@ export default function Home() {
     }
     if (priceRange) queryBuilder = queryBuilder.gte("price", priceRange.min).lte("price", priceRange.max)
     if (selectedSize) {
-      const { data: variantData } = await supabase
+      const { data: variantData } = await (supabase as any)
         .from('product_variants')
         .select('product_id')
         .eq('size', selectedSize)
         .gt('stock', 0)
       
-      const productIds = variantData?.map(v => v.product_id) || []
+      const productIds = variantData?.map((v: any) => v.product_id) || []
       
       if (productIds.length > 0) {
         queryBuilder = queryBuilder.in('id', productIds)
@@ -199,14 +199,14 @@ export default function Home() {
 
     setHasMore(data.length === pageSize)
 
-    const userIds = [...new Set(data.map(p => p.user_id))]
-    const { data: trustData } = await supabase
+    const userIds = [...new Set(data.map((p: any) => p.user_id))]
+    const { data: trustData } = await (supabase as any)
       .from("trust_scores")
       .select("user_id, score")
       .in("user_id", userIds)
 
-    const productsWithTrust = data.map(product => {
-      const trust = trustData?.find(t => t.user_id === product.user_id)
+    const productsWithTrust = data.map((product: any) => {
+      const trust = trustData?.find((t: any) => t.user_id === product.user_id)
       return { ...product, trust }
     })
 
@@ -279,7 +279,7 @@ export default function Home() {
     // Log search analytics (Non-blocking)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      await supabase.from("search_queries").insert({
+      await (supabase as any).from("search_queries").insert({
         query: trimmedQuery,
         user_id: user?.id || null
       })
@@ -304,13 +304,13 @@ export default function Home() {
     }
     if (priceRange) queryBuilder = queryBuilder.gte("price", priceRange.min).lte("price", priceRange.max)
     if (selectedSize) {
-      const { data: variantData } = await supabase
+      const { data: variantData } = await (supabase as any)
         .from('product_variants')
         .select('product_id')
         .eq('size', selectedSize)
         .gt('stock', 0)
       
-      const productIds = variantData?.map(v => v.product_id) || []
+      const productIds = variantData?.map((v: any) => v.product_id) || []
       
       if (productIds.length > 0) {
         queryBuilder = queryBuilder.in('id', productIds)
@@ -327,9 +327,9 @@ export default function Home() {
     const { data } = await queryBuilder;
 
     if (data && data.length > 0) {
-      const userIds = [...new Set(data.map(p => p.user_id))]
-      const { data: trustData } = await supabase.from("trust_scores").select("*").in("user_id", userIds)
-      const productsWithTrust = data.map(product => ({ ...product, trust: trustData?.find(t => t.user_id === product.user_id) }))
+      const userIds = [...new Set(data.map((p: any) => p.user_id))]
+      const { data: trustData } = await (supabase as any).from("trust_scores").select("*").in("user_id", userIds)
+      const productsWithTrust = data.map((product: any) => ({ ...product, trust: trustData?.find((t: any) => t.user_id === product.user_id) }))
       const ranked = rankProducts(productsWithTrust)
       const finalResults = ranked ?? []
       
@@ -348,7 +348,7 @@ export default function Home() {
 
   useEffect(() => {
     const fetchTrending = async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("products")
         .select("category")
         .eq("admin_status", "approved")
@@ -356,7 +356,7 @@ export default function Home() {
         .limit(10)
       
       if (data) {
-        const unique = Array.from(new Set(data.map(p => p.category))).filter(Boolean)
+        const unique = Array.from(new Set(data.map((p: any) => p.category))).filter(Boolean) as string[]
         setTrendingTags(unique.length > 0 ? unique : ["Luxury", "Streetwear", "Archive"])
       }
     }
@@ -398,7 +398,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-8">
           {/* 🔍 COMMAND CENTER (Search) */}
           <div className="flex-1 relative group">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none opacity-40 group-focus-within:opacity-100 transition-opacity">
+            <div className="absolute inset-y-0 left-4 hidden md:flex items-center pointer-events-none opacity-40 group-focus-within:opacity-100 transition-opacity">
               <span className="text-xs font-black">CMD+K</span>
             </div>
             <input
@@ -431,7 +431,7 @@ export default function Home() {
                 else setShowTrending(true);
               }}
               onBlur={() => setTimeout(() => { setShowSuggestions(false); setShowTrending(false); }, 250)}
-              className="w-full pl-16 pr-12 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-black/5 focus:bg-white outline-none text-[11px] font-black uppercase tracking-widest transition-all placeholder:text-gray-300"
+              className="w-full pl-6 md:pl-16 pr-12 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-black/5 focus:bg-white outline-none text-[11px] font-black uppercase tracking-widest transition-all placeholder:text-gray-300"
             />
             <button onClick={searchProducts} className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-black text-white rounded-xl hover:bg-primary hover:text-black transition-all">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -552,9 +552,9 @@ export default function Home() {
                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                    <span className="text-[9px] text-white/70 uppercase tracking-[0.4em] font-black">The Institutional Fleet</span>
                 </div>
-                <h1 className="text-7xl md:text-[9rem] lg:text-[13rem] font-black uppercase text-white tracking-tighter italic leading-[0.75] mix-blend-difference">
+                 <h1 className="text-5xl md:text-[9rem] lg:text-[13rem] font-black uppercase text-white tracking-tighter italic leading-[0.75] mix-blend-difference">
                     HSTNLX
-                    <span className="block text-[10px] md:text-xs tracking-[0.8em] mt-6 md:mt-10 font-black not-italic opacity-40">Blockchain Verified Acquisitions</span>
+                    <span className="block text-[8px] md:text-sm tracking-[0.6em] md:tracking-[0.8em] mt-4 md:mt-10 font-black not-italic opacity-40">Blockchain Verified Acquisitions</span>
                 </h1>
             </div>
             

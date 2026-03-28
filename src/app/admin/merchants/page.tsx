@@ -10,7 +10,7 @@ export default function MerchantAuditTerminal() {
 
     useEffect(() => {
         const fetchMerchants = async () => {
-             const { data, error } = await supabase
+             const { data, error } = await (supabase as any)
                 .from("seller_kyb")
                 .select("*")
                 .order("created_at", { ascending: false })
@@ -25,7 +25,7 @@ export default function MerchantAuditTerminal() {
         if (!confirm("Authorize this Merchant for Institutional Access?")) return
         
         setLoading(true)
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from("seller_kyb")
             .update({ is_verified: true })
             .eq("id", kybId)

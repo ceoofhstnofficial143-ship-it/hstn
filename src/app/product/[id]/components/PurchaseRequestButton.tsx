@@ -34,7 +34,7 @@ export default function PurchaseRequestButton({ product, user, className = "" }:
         
         try {
             // Create purchase request
-            const { data, error } = await supabase.rpc('create_purchase_request', {
+            const { data, error } = await (supabase as any).rpc('create_purchase_request', {
                 p_product_id: product.id,
                 p_buyer_id: user.id,
                 p_buyer_message: message || null

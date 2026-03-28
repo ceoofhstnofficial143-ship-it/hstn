@@ -36,7 +36,7 @@ export default function WishlistPage() {
         }
 
         // Optimized single-query acquisition
-        const { data: merged, error: wishlistErr } = await supabase
+        const { data: merged, error: wishlistErr } = await (supabase as any)
             .from("wishlist")
             .select(`
                 id, 
@@ -56,7 +56,7 @@ export default function WishlistPage() {
         setItems(merged)
 
         // Fetch collections separately
-        const { data: collectionsRes } = await supabase
+        const { data: collectionsRes } = await (supabase as any)
             .from("wishlist_collections")
             .select("*")
             .eq("user_id", session.user.id)
@@ -79,7 +79,7 @@ export default function WishlistPage() {
     const addItemToCollection = async (collectionId: string) => {
         if (!selectedItemForCollection) return
         
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from("wishlist")
             .update({ collection_id: collectionId })
             .eq("id", selectedItemForCollection.id)
@@ -101,7 +101,7 @@ export default function WishlistPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from("wishlist_collections")
             .insert([{ user_id: user.id, name: newCollectionName }])
             .select()
@@ -115,7 +115,7 @@ export default function WishlistPage() {
     }
 
     const removeItem = async (id: string) => {
-        const { error } = await supabase.from("wishlist").delete().eq("id", id)
+        const { error } = await (supabase as any).from("wishlist").delete().eq("id", id)
         if (!error) {
             setItems(items.filter(item => item.id !== id))
             window.dispatchEvent(new Event("hstnlx-wishlist-updated"))

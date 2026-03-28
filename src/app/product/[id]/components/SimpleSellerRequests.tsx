@@ -32,7 +32,7 @@ export default function SimpleSellerRequests({ sellerId }: { sellerId: string })
         setLoading(true)
         
         // Use RPC function for proper data fetching
-        const { data, error } = await supabase.rpc("get_seller_purchase_requests", {
+        const { data, error } = await (supabase as any).rpc("get_seller_purchase_requests", {
             p_seller_id: sellerId,
             p_status: filter === 'all' ? null : filter,
             p_limit: 50,
@@ -49,13 +49,13 @@ export default function SimpleSellerRequests({ sellerId }: { sellerId: string })
     }
 
     const fetchMarketplaceStage = async () => {
-        const { data } = await supabase.rpc('get_marketplace_stage')
+        const { data } = await (supabase as any).rpc('get_marketplace_stage')
         setMarketplaceStage(data?.[0] || null)
     }
 
     const updateRequestStatus = async (requestId: string, newStatus: string, notes?: string) => {
         // Use SAFE function (no trust impact)
-        const { error } = await supabase.rpc('update_simple_request_status_safe', {
+        const { error } = await (supabase as any).rpc('update_simple_request_status_safe', {
             p_request_id: requestId,
             p_new_status: newStatus,
             p_seller_notes: notes

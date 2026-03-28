@@ -68,6 +68,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <Link href="/admin/products" className="text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Inventory</Link>
                             <Link href="/admin/users" className="text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Users</Link>
                             <Link href="/admin/orders" className="text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">Orders</Link>
+                            <Link href="/admin/errors" className="text-[11px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-800 transition-colors">Errors ⚠️</Link>
                             <Link href="/admin/disputes" className="text-[11px] font-black uppercase tracking-widest text-red-500 hover:text-red-700 transition-colors">Disputes 🛡️</Link>
                             <Link href="/admin/settlements" className="text-[11px] font-black uppercase tracking-widest text-green-600 hover:text-green-800 transition-colors">Ledger 💰</Link>
                         </div>

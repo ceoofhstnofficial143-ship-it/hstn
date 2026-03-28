@@ -13,7 +13,7 @@ export async function generateMetadata(
   const { id } = await params
   
   // Fetch product data for SEO
-  const { data: product } = await supabase
+  const { data: product } = await (supabase as any)
     .from("products")
     .select(`*, profiles!products_user_id_fkey(username)`)
     .eq("id", id)

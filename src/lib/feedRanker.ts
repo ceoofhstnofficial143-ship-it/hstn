@@ -7,7 +7,12 @@ export function rankProducts(products: any[]) {
 function getScore(product: any) {
   const trust = product.trust?.score ?? 0
   const viral = getViralScore(product)
-  const hasVideo = product.video_url ? 5 : 0
+  const hasVideo = product.video_url ? 8 : 0
+  const isBoosted = product.is_boosted ? 25 : 0
+  
+  // Recency bonus: last 24h
+  const isNew = (Date.now() - new Date(product.created_at).getTime()) < (24 * 60 * 60 * 1000)
+  const newBonus = isNew ? 15 : 0
 
-  return trust * 2 + viral * 3 + hasVideo
+  return (trust * 1.5) + (viral * 3) + hasVideo + isBoosted + newBonus
 }

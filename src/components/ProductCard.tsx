@@ -21,7 +21,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            const { data } = await supabase
+            const { data } = await (supabase as any)
                 .from("wishlist")
                 .select("id")
                 .eq("user_id", user.id)
@@ -50,7 +50,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
         setLoadingWishlist(true)
         try {
             if (isWishlisted) {
-                const { error } = await supabase
+                const { error } = await (supabase as any)
                     .from("wishlist")
                     .delete()
                     .eq("user_id", user.id)
@@ -62,7 +62,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                     window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
                 }
             } else {
-                const { error } = await supabase
+                const { error } = await (supabase as any)
                     .from("wishlist")
                     .insert([{ user_id: user.id, product_id: product.id }])
 
@@ -83,7 +83,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
     }
 
     const updateProductViews = async (productId: string) => {
-        await supabase
+        await (supabase as any)
             .from("products")
             .update({ views: (product.views || 0) + 1 })
             .eq("id", productId);
@@ -156,21 +156,22 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
 
     const addToCart = (size: string) => {
         const cart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
-        const newItem = {
-            productId: product.id,
-            seller_id: product.user_id,
-            title: product.title,
-            price: product.price,
-            image: product.image_url,
-            size: size,
-            qty: 1
-        }
 
         // Check if existing
         const existingIdx = cart.findIndex((i: any) => i.productId === product.id && i.size === size)
+
         if (existingIdx > -1) {
-            cart[existingIdx].qty += 1
+            cart[existingIdx].qty = (cart[existingIdx].qty || 0) + 1
         } else {
+            const newItem = {
+                productId: product.id,
+                seller_id: product.user_id,
+                title: product.title,
+                price: product.price,
+                image: product.image_url,
+                size: size,
+                qty: 1
+            }
             cart.push(newItem)
         }
 
@@ -186,7 +187,8 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
         })
 
         setShowSizes(false)
-        alert(`Success: ${product.title} (Size ${size}) added to your vault.`)
+        const totalQty = cart[existingIdx > -1 ? existingIdx : cart.length - 1].qty
+        alert(`Success: ${product.title} (Size ${size}) secured. Total in bag: ${totalQty}`)
     }
 
     const hasSecondImage = product.additional_images && product.additional_images.length > 0;
@@ -222,9 +224,19 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
 
                     {/* TRENDING / DISCOUNT BADGES */}
                     <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 items-start">
-                        {(product.views > 50 || product.stock <= 5) && (
+                        {product.is_boosted && (
+                            <span className="bg-primary text-black px-2 py-1 rounded-sm text-[8px] font-black uppercase tracking-widest shadow-[0_0_15px_rgba(var(--primary-rgb),0.6)] animate-pulse">
+                                🚀 Discovery Boost
+                            </span>
+                        )}
+                        {(Date.now() - new Date(product.created_at).getTime()) < (24 * 60 * 60 * 1000) && (
+                            <span className="bg-blue-600 text-white px-2 py-1 rounded-sm text-[8px] font-black uppercase tracking-widest shadow-2xl">
+                                ✨ New Asset
+                            </span>
+                        )}
+                        {(product.views > 50 || product.stock <= 3) && (
                             <span className="bg-black text-white px-2 py-1 rounded-sm text-[8px] font-black uppercase tracking-widest shadow-2xl">
-                                {product.stock <= 5 && product.stock > 0 ? '⚡ Limited' : '🔥 Trending'}
+                                {product.stock <= 3 && product.stock > 0 ? '⚡ Limited' : '🔥 Trending'}
                             </span>
                         )}
                         {product.original_price && product.original_price > product.price && (
@@ -312,10 +324,18 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between px-3 py-2 bg-gray-50/50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between px-3 py-2 bg-gray-50/50 rounded-xl border border-gray-100 mb-2">
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px]">⚖️</span>
-                        <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">{mockSold}+ Secured</span>
+                        <span className="text-[10px]">🔥</span>
+                        <div className="flex-1 space-y-1">
+                           <div className="flex justify-between items-center text-[7px] font-black uppercase tracking-widest">
+                              <span>Viral Heat</span>
+                              <span>{Math.min(100, Math.floor((product.views || 0) / 5))}%</span>
+                           </div>
+                           <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-primary" style={{ width: `${Math.min(100, (product.views || 0) / 5)}%` }} />
+                           </div>
+                        </div>
                     </div>
                     <div className="h-3 w-px bg-gray-200" />
                     <div className="flex items-center gap-1.5">

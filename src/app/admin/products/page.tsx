@@ -15,7 +15,7 @@ export default function AdminProductsPage() {
 
     const fetchPendingProducts = async () => {
         setLoading(true)
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from("products")
             .select(`
                 *,
@@ -29,7 +29,7 @@ export default function AdminProductsPage() {
     }
 
     const handleStatusUpdate = async (productId: string, status: 'approved' | 'rejected') => {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from("products")
             .update({ admin_status: status })
             .eq("id", productId)

@@ -26,7 +26,7 @@ export default function FollowButton({ sellerId, sellerName, className }: Follow
         return
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("follows")
         .select("*")
         .eq("follower_id", user.id)
@@ -53,7 +53,7 @@ export default function FollowButton({ sellerId, sellerName, className }: Follow
       }
 
       if (isFollowing) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("follows")
           .delete()
           .eq("follower_id", user.id)
@@ -62,7 +62,7 @@ export default function FollowButton({ sellerId, sellerName, className }: Follow
         if (error) throw error
         setIsFollowing(false)
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("follows")
           .insert({
             follower_id: user.id,

@@ -19,7 +19,7 @@ async function updateAddressHandler(req: NextRequest, { user, validatedData }: a
   const { id } = params;
 
   // First verify ownership
-  const { data: existingAddress, error: checkError } = await supabaseAdmin
+  const { data: existingAddress, error: checkError } = await (supabaseAdmin as any)
     .from('addresses')
     .select('user_id')
     .eq('id', id)
@@ -33,7 +33,7 @@ async function updateAddressHandler(req: NextRequest, { user, validatedData }: a
     return NextResponse.json({ error: 'Unauthorized: not owner' }, { status: 403 });
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await (supabaseAdmin as any)
     .from('addresses')
     .update(validatedData)
     .eq('id', id)
@@ -52,7 +52,7 @@ async function deleteAddressHandler(req: NextRequest, { user }: any, { params }:
   const { id } = params;
 
   // Verify ownership
-  const { data: existingAddress, error: checkError } = await supabaseAdmin
+  const { data: existingAddress, error: checkError } = await (supabaseAdmin as any)
     .from('addresses')
     .select('user_id, is_default')
     .eq('id', id)
@@ -66,7 +66,7 @@ async function deleteAddressHandler(req: NextRequest, { user }: any, { params }:
     return NextResponse.json({ error: 'Unauthorized: not owner' }, { status: 403 });
   }
 
-  const { error } = await supabaseAdmin
+  const { error } = await (supabaseAdmin as any)
     .from('addresses')
     .delete()
     .eq('id', id);
@@ -77,7 +77,7 @@ async function deleteAddressHandler(req: NextRequest, { user }: any, { params }:
 
   // If deleted address was default, set the most recent address as default
   if (existingAddress.is_default) {
-    const { data: latestAddress } = await supabaseAdmin
+    const { data: latestAddress } = await (supabaseAdmin as any)
       .from('addresses')
       .select('id')
       .eq('user_id', user.id)
@@ -86,7 +86,7 @@ async function deleteAddressHandler(req: NextRequest, { user }: any, { params }:
       .single();
 
     if (latestAddress) {
-      await supabaseAdmin
+      await (supabaseAdmin as any)
         .from('addresses')
         .update({ is_default: true })
         .eq('id', latestAddress.id);

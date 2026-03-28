@@ -36,24 +36,24 @@ export async function POST(req: Request) {
     const productIds = cart.map((i: any) => i.productId);
     
     // Fetch base prices
-    const { data: dbProducts } = await supabaseAdmin
+    const { data: dbProducts } = await (supabaseAdmin as any)
         .from("products")
         .select("id, price, user_id")
         .in("id", productIds);
 
     // Fetch variant prices (if any)
-    const { data: dbVariants } = await supabaseAdmin
+    const { data: dbVariants } = await (supabaseAdmin as any)
         .from("product_variants")
         .select("product_id, size, price")
         .in("product_id", productIds);
 
     const verifiedCart = []; // Initialize verifiedCart
     for (const item of cart) {
-        const dbProduct = dbProducts?.find(p => p.id === item.productId);
+        const dbProduct = dbProducts?.find((p: any) => p.id === item.productId);
         if (!dbProduct) throw new Error(`Asset ${item.productId} status: Terminated/Missing.`);
         
         // Priority: Variant Price > Base Price
-        const dbVariant = dbVariants?.find(v => v.product_id === item.productId && v.size === item.size);
+        const dbVariant = dbVariants?.find((v: any) => v.product_id === item.productId && v.size === item.size);
         const unitPrice = dbVariant?.price || dbProduct.price;
         
         serverAmount += unitPrice * (item.qty || 1);
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     // Prevents double-order clicks from creating dual Razorpay IDs for same session
     // supabaseAdmin already declared above
 
-    const { data: lockAcquired } = await supabaseAdmin.rpc("acquire_checkout_lock", {
+    const { data: lockAcquired } = await (supabaseAdmin as any).rpc("acquire_checkout_lock", {
         p_user_id: user.id,
         p_lock_id: `checkout_${Date.now()}`
     });
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
       const mockOrderId = "mock_order_" + Date.now();
       console.log(`[MOCK MODE] Simulation Order Creation: ₹${serverAmount}`);
       
-      const { error: insertError } = await supabaseAdmin.from("checkout_sessions").insert({
+      const { error: insertError } = await (supabaseAdmin as any).from("checkout_sessions").insert({
         user_id: user.id,
         razorpay_order_id: mockOrderId,
         cart: verifiedCart, // 🛡️ VERIFIED
@@ -139,7 +139,7 @@ export async function POST(req: Request) {
 
     // 🛡️ 3. LIVE ACQUISITION (Persistent Session)
     // Create the session record first so even if Razorpay succeeds but our server crashes, we have the intent
-    const { data: session, error: sessionError } = await supabaseAdmin
+    const { data: session, error: sessionError } = await (supabaseAdmin as any)
         .from("checkout_sessions")
         .insert({
             user_id: user.id,
@@ -164,7 +164,7 @@ export async function POST(req: Request) {
     }) as any;
 
     // 🔐 3.5 RECONSTRUCT SESSION LINK
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await (supabaseAdmin as any)
         .from("checkout_sessions")
         .update({ razorpay_order_id: razorOrder.id })
         .eq("id", session.id);
@@ -175,7 +175,7 @@ export async function POST(req: Request) {
     }
 
     // 🕵️ 4. LOG SUCCESS
-    await supabaseAdmin.from("system_events").insert({
+    await (supabaseAdmin as any).from("system_events").insert({
         event_type: "payment_created",
         source: "create_order_api",
         status: "success",
@@ -202,10 +202,10 @@ export async function POST(req: Request) {
           );
           const { data: { user: failedUser } } = await sc.auth.getUser();
           if (failedUser) {
-            await supabaseErrorLog.rpc("release_checkout_lock", { p_user_id: failedUser.id });
+            await (supabaseErrorLog as any).rpc("release_checkout_lock", { p_user_id: failedUser.id });
           }
         }
-        await supabaseErrorLog.from("system_events").insert({
+        await (supabaseErrorLog as any).from("system_events").insert({
             event_type: "system_error",
             source: "create_order_api",
             status: "failed",

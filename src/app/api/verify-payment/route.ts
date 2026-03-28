@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     if (!user) {
       console.warn(`Orphaned Payment Detected: ID ${razorpay_payment_id}. Storing ledger record for reconciliation.`);
       
-      await supabaseAdmin.from("payments").insert({
+      await (supabaseAdmin as any).from("payments").insert({
         payment_id: razorpay_payment_id,
         razorpay_order_id: razorpay_order_id,
         status: "orphaned",
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
       console.log(`[VERIFY] Found existing pending orders: ${internalOrderIds.join(', ')}. Transitioning to PAID.`);
       
       // Update existing orders
-      const { error: updateError } = await supabaseAdmin
+      const { error: updateError } = await (supabaseAdmin as any)
         .from('orders')
         .update({ 
           status: 'confirmed', 
@@ -117,14 +117,14 @@ export async function POST(req: Request) {
       if (updateError) throw new Error(`Existing Order Update Failed: ${updateError.message}`);
 
       // Handle Stock Reduction for these orders
-      const { data: itemsToReduce } = await supabaseAdmin
+      const { data: itemsToReduce } = await (supabaseAdmin as any)
         .from('order_items')
         .select('product_id, quantity')
         .in('order_id', internalOrderIds);
 
       if (itemsToReduce) {
         for (const item of itemsToReduce) {
-          await supabaseAdmin.rpc('increment_stock', { p_id: item.product_id, p_qty: -item.quantity });
+          await (supabaseAdmin as any).rpc('increment_stock', { p_id: item.product_id, p_qty: -item.quantity });
         }
       }
 
@@ -137,7 +137,7 @@ export async function POST(req: Request) {
       // 🛡️ RETRY MECHANISM (Protocol Synchronization)
       // Prevents race conditions during mock/fast verification
       for (let i = 0; i < 4; i++) {
-          const { data, error } = await supabaseAdmin
+          const { data, error } = await (supabaseAdmin as any)
               .from("checkout_sessions")
               .select("cart, shipping")
               .eq("razorpay_order_id", razorpay_order_id)
@@ -157,7 +157,7 @@ export async function POST(req: Request) {
           throw new Error("Integrated Payment Session not found. Sequence out of sync.");
       }
 
-      const { data: rpcOrderId, error: rpcError } = await supabaseAdmin.rpc("place_order_after_payment", {
+      const { data: rpcOrderId, error: rpcError } = await (supabaseAdmin as any).rpc("place_order_after_payment", {
         p_cart: sessionData.cart,
         p_payment_id: razorpay_payment_id,
         p_razorpay_order_id: razorpay_order_id,
@@ -178,10 +178,10 @@ export async function POST(req: Request) {
     }
 
     // 🕵️ 5. RELEASE LOCK (Order Secured)
-    await supabaseAdmin.rpc("release_checkout_lock", { p_user_id: user.id });
+    await (supabaseAdmin as any).rpc("release_checkout_lock", { p_user_id: user.id });
 
     // 📝 6. CENTRALIZED OBSERVABILITY (Standardized)
-    await supabaseAdmin.from("system_events").insert({
+    await (supabaseAdmin as any).from("system_events").insert({
         event_type: 'payment_verified',
         source: 'verify_api',
         status: 'success',
@@ -197,7 +197,7 @@ export async function POST(req: Request) {
     // 🔴 LOG FAILURE
     try {
         const supabaseErrorLog = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-        await supabaseErrorLog.from("system_events").insert({
+        await (supabaseErrorLog as any).from("system_events").insert({
             event_type: "payment_failed",
             source: "verify_api",
             status: "failed",

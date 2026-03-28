@@ -33,6 +33,10 @@ let supabaseAdminInstance: ReturnType<typeof createClient> | null = null
 
 export const getSupabaseAdmin = () => {
   if (!supabaseAdminInstance) {
+    if (!supabaseUrl || !serviceRoleKey) {
+      if (typeof window === 'undefined') console.error('Missing Supabase variables for Admin Client');
+      return createClient('https://placeholder.supabase.co', 'placeholder-key');
+    }
     supabaseAdminInstance = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,

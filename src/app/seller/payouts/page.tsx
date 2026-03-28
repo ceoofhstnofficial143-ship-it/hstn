@@ -18,13 +18,13 @@ export default function SellerPayouts() {
         if (!user) return
         
         // 1. Fetch Payouts for this Seller
-        const { data } = await supabase.from("seller_payouts").select("*, orders(status, created_at)").eq("seller_id", user.id).order("created_at", { ascending: false })
+        const { data } = await (supabase as any).from("seller_payouts").select("*, orders(status, created_at)").eq("seller_id", user.id).order("created_at", { ascending: false })
         
         if (data) {
             setPayouts(data)
-            const earned = data.reduce((acc, p) => acc + (p.amount || 0), 0)
-            const pend = data.filter(p => p.status === 'pending').reduce((acc, p) => acc + (p.amount || 0), 0)
-            const proc = data.filter(p => p.status === 'processed').reduce((acc, p) => acc + (p.amount || 0), 0)
+            const earned = data.reduce((acc: number, p: any) => acc + (p.amount || 0), 0)
+            const pend = data.filter((p: any) => p.status === 'pending').reduce((acc: number, p: any) => acc + (p.amount || 0), 0)
+            const proc = data.filter((p: any) => p.status === 'processed').reduce((acc: number, p: any) => acc + (p.amount || 0), 0)
             setStats({ total_earned: earned, pending: pend, processed: proc })
         }
         setLoading(false)

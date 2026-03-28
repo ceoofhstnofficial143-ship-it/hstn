@@ -31,7 +31,7 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
             let data: any[] | null = []
             
             if (userId) {
-                const { data: feedData, error } = await supabase.rpc("get_personalized_feed", {
+                const { data: feedData, error } = await (supabase as any).rpc("get_personalized_feed", {
                     p_viewer_id: userId,
                     p_limit: pageSize,
                     p_offset: offset
@@ -39,7 +39,7 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
                 if (error) throw error
                 data = feedData
             } else {
-                const { data: anonData, error } = await supabase
+                const { data: anonData, error } = await (supabase as any)
                     .from("products")
                     .select("*, profiles!products_user_id_fkey(username), trust_scores(score)")
                     .eq("admin_status", "approved")

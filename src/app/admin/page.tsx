@@ -106,9 +106,14 @@ export default function AdminDashboard() {
                     <h1 className="text-4xl font-black tracking-tight">Marketplace <span className="text-slate-400">Overview</span></h1>
                     <p className="text-slate-500 font-medium mt-1 uppercase tracking-widest text-[10px]">Real-time system health and liquidity metrics</p>
                 </div>
-                <Link href="/admin/marketplace-intelligence" className="text-[10px] font-black uppercase tracking-widest bg-slate-100 px-6 py-3 rounded-2xl hover:bg-slate-900 hover:text-white transition-all">
-                    Deep Intelligence →
-                </Link>
+                <div className="flex items-center gap-3">
+                    <Link href="/admin/errors" className="text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 px-6 py-3 rounded-2xl hover:bg-amber-200 transition-all">
+                        Error Logs ⚠️
+                    </Link>
+                    <Link href="/admin/marketplace-intelligence" className="text-[10px] font-black uppercase tracking-widest bg-slate-100 px-6 py-3 rounded-2xl hover:bg-slate-900 hover:text-white transition-all">
+                        Deep Intelligence →
+                    </Link>
+                </div>
             </header>
 
             {/* Quick Stats */}

@@ -31,7 +31,7 @@ export default function SellerPurchaseRequests({ sellerId }: { sellerId: string 
     const fetchRequests = async () => {
         setLoading(true)
         
-        const { data, error } = await supabase.rpc('get_seller_purchase_requests', {
+        const { data, error } = await (supabase as any).rpc('get_seller_purchase_requests', {
             p_seller_id: sellerId,
             p_status: filter === 'all' ? null : filter,
             p_limit: 50
@@ -47,7 +47,7 @@ export default function SellerPurchaseRequests({ sellerId }: { sellerId: string 
     }
 
     const fetchPerformanceMetrics = async () => {
-        const { data, error } = await supabase.rpc('get_seller_performance_metrics', {
+        const { data, error } = await (supabase as any).rpc('get_seller_performance_metrics', {
             p_seller_id: sellerId
         })
 
@@ -59,7 +59,7 @@ export default function SellerPurchaseRequests({ sellerId }: { sellerId: string 
     }
 
     const updateRequestStatus = async (requestId: string, newStatus: string, notes?: string) => {
-        const { error } = await supabase.rpc('update_protected_request_status', {
+        const { error } = await (supabase as any).rpc('update_protected_request_status', {
             p_request_id: requestId,
             p_new_status: newStatus,
             p_seller_notes: notes,

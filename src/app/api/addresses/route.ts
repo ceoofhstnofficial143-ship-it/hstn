@@ -18,7 +18,7 @@ const addressSchema = {
 
 // GET: Fetch all addresses for the authenticated user
 async function getAddressesHandler(req: NextRequest, { user }: any) {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await (supabaseAdmin as any)
     .from('addresses')
     .select('*')
     .eq('user_id', user.id)
@@ -35,14 +35,14 @@ async function getAddressesHandler(req: NextRequest, { user }: any) {
 // POST: Create a new address
 async function createAddressHandler(req: NextRequest, { user, validatedData }: any) {
   // If this is the first address, make it default automatically
-  const { count } = await supabaseAdmin
+  const { count } = await (supabaseAdmin as any)
     .from('addresses')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id);
 
   const isFirstAddress = count === 0;
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await (supabaseAdmin as any)
     .from('addresses')
     .insert([{ 
       ...validatedData, 
@@ -58,7 +58,7 @@ async function createAddressHandler(req: NextRequest, { user, validatedData }: a
 
   // If this new address is set to default, unset others (transactional logic in service/DB preferred but here for simplicity)
   if (data.is_default) {
-    await supabaseAdmin
+    await (supabaseAdmin as any)
       .from('addresses')
       .update({ is_default: false })
       .eq('user_id', user.id)

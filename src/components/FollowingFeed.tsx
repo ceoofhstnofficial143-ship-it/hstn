@@ -26,7 +26,7 @@ export default function FollowingFeed() {
     const fetchFollowingProducts = async (userId: string) => {
         try {
             // 1. Get seller IDs that the user follows
-            const { data: follows, error: followError } = await supabase
+            const { data: follows, error: followError } = await (supabase as any)
                 .from("follows")
                 .select("seller_id")
                 .eq("follower_id", userId)
@@ -39,10 +39,10 @@ export default function FollowingFeed() {
                 return
             }
 
-            const sellerIds = follows.map(f => f.seller_id)
+            const sellerIds = follows.map((f: any) => f.seller_id)
 
             // 2. Get recent products from those sellers
-            const { data: followingProducts, error: productsError } = await supabase
+            const { data: followingProducts, error: productsError } = await (supabase as any)
                 .from("products")
                 .select(`
                     id, 

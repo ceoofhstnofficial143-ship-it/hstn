@@ -13,7 +13,7 @@ export default function OrderTrackingProtocol(props: { params: Promise<{ id: str
 
     useEffect(() => {
         const fetchOrder = async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("orders")
                 .select(`
           *,
@@ -24,7 +24,7 @@ export default function OrderTrackingProtocol(props: { params: Promise<{ id: str
 
             if (!error && data) {
                 // Safe secondary fetch for Seller Profile to avoid PostgREST explicit FK errors
-                const { data: sellerData } = await supabase
+                const { data: sellerData } = await (supabase as any)
                     .from("profiles")
                     .select("full_name")
                     .eq("id", data.seller_id)
@@ -50,7 +50,7 @@ export default function OrderTrackingProtocol(props: { params: Promise<{ id: str
         }
 
         setLoading(true)
-        const { error } = await supabase.rpc('initialize_order_dispute', {
+        const { error } = await (supabase as any).rpc('initialize_order_dispute', {
             p_order_id: params.id,
             p_reason: disputeReason,
             p_details: disputeDetails
@@ -162,11 +162,13 @@ export default function OrderTrackingProtocol(props: { params: Promise<{ id: str
 
                             {[
                                 { id: 'confirmed', label: 'Protocol Initialized', desc: 'Secure escrow lock achieved. Merchant notified.' },
-                                { id: 'packed', label: 'Asset Preparation', desc: 'Quality inspection and secured packaging engaged.' },
+                                { id: 'inspected', label: 'Asset Inspection', desc: 'Institutional grade verification for defects/authenticity.' },
+                                { id: 'packed', label: 'Asset Preparation', desc: 'Quality secured packaging engaged.' },
                                 { id: 'shipped', label: 'Carrier Handover', desc: 'Asset acquired by logistics provider. In transit.' },
+                                { id: 'out_for_delivery', label: 'Final Tactical Leg', desc: 'Scout has deployed to your drop coordinates.' },
                                 { id: 'delivered', label: 'Acquisition Complete', desc: 'Asset successfully reached destination coordinates.' }
                             ].map((step, idx) => {
-                                const stages = ['pending', 'confirmed', 'packed', 'shipped', 'delivered']
+                                const stages = ['pending', 'confirmed', 'inspected', 'packed', 'shipped', 'out_for_delivery', 'delivered']
                                 const currentIdx = stages.indexOf(order.status || 'pending')
                                 const stepIdx = stages.indexOf(step.id)
                                 const isPast = currentIdx >= stepIdx
@@ -193,6 +195,31 @@ export default function OrderTrackingProtocol(props: { params: Promise<{ id: str
                                 )
                             })}
                         </div>
+                        {order.status === 'delivered' && (
+                            <div className="mt-12 p-8 bg-primary/5 rounded-[2.5rem] border-2 border-primary border-dashed animate-in fade-in slide-in-from-top-6 duration-1000">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center text-3xl shadow-2xl animate-bounce">📦</div>
+                                    <div>
+                                        <h3 className="text-xl font-black italic uppercase tracking-tighter">Acquisition Authenticated</h3>
+                                        <p className="text-[10px] uppercase tracking-[0.3em] text-primary/60 mt-1 font-bold">Feedback Loop Protocol Active</p>
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-muted uppercase tracking-widest mt-6 leading-relaxed font-medium">
+                                    The asset has entered your possession. Your review will secure the merchant's trust ranking and complete the trade cycle.
+                                </p>
+                                <div className="flex gap-4 mt-8">
+                                    {order.order_items?.[0] && (
+                                        <Link 
+                                            href={`/product/${order.order_items[0].product_id}`}
+                                            className="luxury-button !bg-black !text-white !py-4 !px-8 text-[10px] font-black uppercase tracking-widest shadow-2xl"
+                                        >
+                                            Submit Fit Review
+                                        </Link>
+                                    )}
+                                    <button onClick={() => window.print()} className="px-8 py-4 border-2 border-black text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all">Download Receipt</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Asset Details */}

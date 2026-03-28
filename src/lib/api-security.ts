@@ -2,7 +2,9 @@
 // Protects all API routes with comprehensive security measures
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { getSupabaseAdmin } from './supabase';
 import { validate, sanitize } from './security';
 import { applyRateLimit, createRateLimitResponse } from './rate-limiting';
 import { generateCSRFToken, validateCSRFToken, csrfMiddleware, doubleSubmitProtection, originValidation } from './csrf-protection';
@@ -75,12 +77,38 @@ export async function authenticateRequest(request: NextRequest): Promise<{
       };
     }
 
-    // Check if user is active/enabled
-    const { data: profile } = await supabase
+    // Resolve profile/role with admin client to avoid RLS false negatives
+    const supabaseAdmin = getSupabaseAdmin();
+    let { data: profile } = await (supabaseAdmin as any)
       .from('profiles')
       .select('role, disabled')
       .eq('id', user.id)
       .single();
+
+    // Fallback: token-scoped client query when admin client is unavailable/misconfigured
+    if (!profile) {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (url && anon) {
+        const scoped = createClient(url, anon, {
+          global: {
+            headers: { Authorization: `Bearer ${token}` }
+          },
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        });
+        const { data: scopedProfile } = await (scoped as any)
+          .from('profiles')
+          .select('role, disabled')
+          .eq('id', user.id)
+          .single();
+        profile = scopedProfile || profile;
+      }
+    }
+
+    const resolvedRole = profile?.role || (user as any)?.user_metadata?.role || (user as any)?.app_metadata?.role || 'user';
 
     if (profile?.disabled) {
       logAuditEvent('authentication_disabled_user', request, { userId: user.id });
@@ -97,7 +125,7 @@ export async function authenticateRequest(request: NextRequest): Promise<{
     logAuditEvent('authentication_success', request, { userId: user.id });
 
     return {
-      user: { ...user, profile },
+      user: { ...user, profile: { ...(profile || {}), role: resolvedRole } },
       session: { token }
     };
 
@@ -122,8 +150,9 @@ export function authorizeRequest(
 ): NextResponse | null {
   // Check role-based access
   if (requiredRole) {
-    const userRole = user.profile?.role || 'user';
-    if (userRole !== requiredRole && userRole !== 'admin') {
+    const userRole = String(user.profile?.role || 'user').toLowerCase();
+    const required = String(requiredRole).toLowerCase();
+    if (userRole !== required && userRole !== 'admin') {
       logAuditEvent('authorization_role_denied', null, {
         userId: user.id,
         requiredRole,

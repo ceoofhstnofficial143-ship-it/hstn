@@ -40,6 +40,8 @@ export const viewport: Viewport = {
   themeColor: "#000000",
 };
 
+import EngagementTriggers from "@/components/EngagementTriggers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -57,10 +59,8 @@ export default function RootLayout({
               {children}
             </Suspense>
           </main>
+          <EngagementTriggers />
         </SupabaseProvider>
-        
-        {/* Razorpay Gateway Node */}
-        <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
         
         {/* Google Analytics */}
         <Script
@@ -85,8 +85,63 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              console.log('🔧 HSTNLX Protocol: Environment Synchronized');
               window.hstnlx_version = '2.0.0-PROD';
+              (function () {
+                function sendEvent(payload) {
+                  try {
+                    const body = JSON.stringify(payload);
+                    if (navigator.sendBeacon) {
+                      const blob = new Blob([body], { type: "application/json" });
+                      navigator.sendBeacon("/api/log-client-event", blob);
+                      return;
+                    }
+                    fetch("/api/log-client-event", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body,
+                      keepalive: true,
+                    });
+                  } catch (_) {}
+                }
+
+                sendEvent({
+                  event_type: "client_boot",
+                  source: "root_layout",
+                  status: "success",
+                  metadata: {
+                    path: window.location.pathname,
+                    version: window.hstnlx_version,
+                    userAgent: navigator.userAgent,
+                  },
+                });
+
+                window.addEventListener("error", function (event) {
+                  sendEvent({
+                    event_type: "client_error",
+                    source: "window_error",
+                    status: "failed",
+                    metadata: {
+                      message: event.message,
+                      filename: event.filename,
+                      lineno: event.lineno,
+                      colno: event.colno,
+                      path: window.location.pathname,
+                    },
+                  });
+                });
+
+                window.addEventListener("unhandledrejection", function (event) {
+                  sendEvent({
+                    event_type: "client_unhandled_rejection",
+                    source: "window_unhandledrejection",
+                    status: "failed",
+                    metadata: {
+                      reason: String(event.reason),
+                      path: window.location.pathname,
+                    },
+                  });
+                });
+              })();
             `,
           }}
         />

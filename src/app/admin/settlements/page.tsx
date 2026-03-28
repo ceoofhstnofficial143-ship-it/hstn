@@ -17,7 +17,7 @@ export default function PayoutSettlements() {
             setUser(user)
 
             // Phase 1: Fetch Payouts and Orders (No identity joins)
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("seller_payouts")
                 .select(`
                     *,
@@ -35,35 +35,35 @@ export default function PayoutSettlements() {
 
             if (data) {
                 // Phase 2: Fetch Identity Data (Profiles) for all unique sellers
-                const sellerIds = Array.from(new Set(data.filter(p => p.seller_id).map(p => p.seller_id)))
+                const sellerIds = Array.from(new Set(data.filter((p: any) => p.seller_id).map((p: any) => p.seller_id)))
                 
                 let profileMap: Record<string, any> = {};
                 if (sellerIds.length > 0) {
-                    const { data: profileData } = await supabase
+                    const { data: profileData } = await (supabase as any)
                         .from("profiles")
                         .select("id, full_name, email")
                         .in("id", sellerIds);
                     
                     if (profileData) {
-                        profileData.forEach(p => profileMap[p.id] = p);
+                        profileData.forEach((p: any) => profileMap[p.id] = p);
                     }
                 }
 
                 // Phase 3: Fetch KYB (UPI) for all sellers
                 let kybMap: Record<string, any> = {};
                 if (sellerIds.length > 0) {
-                    const { data: kybData } = await supabase
+                    const { data: kybData } = await (supabase as any)
                         .from("seller_kyb")
                         .select("user_id, upi_id, store_name")
                         .in("user_id", sellerIds);
                     
                     if (kybData) {
-                        kybData.forEach(k => kybMap[k.user_id] = k);
+                        kybData.forEach((k: any) => kybMap[k.user_id] = k);
                     }
                 }
 
                 // Phase 4: Consolidate Ledger Data
-                const mapped = data.map(p => ({
+                const mapped = data.map((p: any) => ({
                     ...p,
                     seller: profileMap[p.seller_id] || { full_name: "Anonymous User", email: p.seller_id },
                     kyb: kybMap[p.seller_id]

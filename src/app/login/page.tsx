@@ -23,6 +23,27 @@ export default function LoginPage() {
     if (error) {
       alert(`Access Denied: ${error.message}`)
     } else {
+      // 🛒 CART SYNC PROTOCOL (Device-Agnostic Persistence)
+      const localCart = localStorage.getItem("hstnlx_cart")
+      if (localCart) {
+        try {
+          const parsedCart = JSON.parse(localCart)
+          if (parsedCart.length > 0) {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+              await (supabase as any).rpc("sync_cart_items", {
+                p_items: parsedCart,
+                p_user_id: user.id
+              })
+              // Clear local once synced to central registry
+              localStorage.removeItem("hstnlx_cart")
+              window.dispatchEvent(new Event("hstnlx-cart-updated"))
+            }
+          }
+        } catch (e) {
+          console.error("Cart synchronization failure:", e)
+        }
+      }
       router.push("/")
     }
     setLoading(false)

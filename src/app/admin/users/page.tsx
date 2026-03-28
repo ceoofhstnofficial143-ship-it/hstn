@@ -13,7 +13,7 @@ export default function AdminUsers() {
 
     const fetchUsers = async () => {
         setLoading(true)
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
             .from("profiles")
             .select(`
                 id,
@@ -32,7 +32,7 @@ export default function AdminUsers() {
     const toggleBan = async (id: string, currentStatus: boolean) => {
         if (!confirm(`Are you sure you want to ${!currentStatus ? 'BAN' : 'RESTORE'} this user?`)) return
         
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from("profiles")
             .update({ is_banned: !currentStatus })
             .eq("id", id)
@@ -48,7 +48,7 @@ export default function AdminUsers() {
         const nextRole = currentRole === 'admin' ? 'user' : 'admin'
         if (!confirm(`Switch user role to ${nextRole.toUpperCase()}?`)) return
 
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from("profiles")
             .update({ role: nextRole })
             .eq("id", id)

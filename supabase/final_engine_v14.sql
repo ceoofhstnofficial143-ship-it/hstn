@@ -37,6 +37,7 @@ DECLARE
   v_return_id UUID;
   v_p_id UUID;
   v_p_qty INTEGER;
+  v_p_qty_current INTEGER;
   v_db_price NUMERIC;
   v_p_size TEXT;
   v_order_total NUMERIC;
@@ -119,7 +120,13 @@ BEGIN
       INSERT INTO public.order_items (order_id, product_id, quantity, price, selected_size)
       VALUES (v_order_id, v_p_id, v_p_qty, v_db_price, COALESCE(v_p_size, 'N/A'));
 
-      UPDATE public.products SET stock = GREATEST(0, stock - v_p_qty) WHERE id = v_p_id;
+      -- check stock before decrementing
+      SELECT stock INTO v_p_qty_current FROM public.products WHERE id = v_p_id FOR UPDATE;
+      IF v_p_qty_current < v_p_qty THEN
+        RAISE EXCEPTION 'Asset % out of stock. Protocol check failed.', v_p_id;
+      END IF;
+
+      UPDATE public.products SET stock = stock - v_p_qty WHERE id = v_p_id;
     END LOOP;
 
     -- 💰 1. SYNC ORDER TOTAL

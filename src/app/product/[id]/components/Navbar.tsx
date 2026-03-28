@@ -214,19 +214,8 @@ export default function Navbar() {
             )}
           </Link>
 
-          {/* Mobile Auth Links */}
-          <div className="lg:hidden flex items-center gap-2">
-            {!user ? (
-              <>
-                <Link href="/login" className="text-xs font-bold uppercase tracking-widest px-3 py-2 bg-black text-white rounded-lg">
-                  Login
-                </Link>
-                <Link href="/signup" className="text-xs font-bold uppercase tracking-widest px-3 py-2 border border-black text-black rounded-lg">
-                  Join
-                </Link>
-              </>
-            ) : null}
-          </div>
+          {/* Mobile Auth Links - Removed from header to reduce overcrowding */}
+          {/* Moved to mobile menu exclusively */}
 
           {/* Desktop Auth Links */}
           <div className="hidden lg:flex items-center gap-4">

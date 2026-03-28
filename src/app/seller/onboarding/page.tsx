@@ -16,7 +16,7 @@ export default function SellerOnboarding() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return router.push("/login")
 
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("seller_kyb")
         .select("*")
         .eq("user_id", user.id)
@@ -32,7 +32,7 @@ export default function SellerOnboarding() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("seller_kyb")
       .insert({
         user_id: user?.id,

@@ -35,7 +35,7 @@ export default function SignupPage() {
 
     if (data.user) {
       // 2. Profile Creation (Safe Sync)
-      const { error: profileError } = await supabase
+      const { error: profileError } = await (supabase as any)
         .from("profiles")
         .insert({
           id: data.user.id,

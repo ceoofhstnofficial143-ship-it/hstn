@@ -16,7 +16,7 @@ export default function DisputeProtocol({ params }: { params: Promise<{ id: stri
 
     useEffect(() => {
         const fetchOrder = async () => {
-            const { data } = await supabase
+            const { data } = await (supabase as any)
                 .from("orders")
                 .select(`
                     *,
@@ -38,7 +38,7 @@ export default function DisputeProtocol({ params }: { params: Promise<{ id: stri
         setSubmitting(true)
 
         // 🛡️ HARDENED PROTOCOL: RPC call instead of manual table write
-        const { error } = await supabase.rpc("initialize_order_dispute", {
+        const { error } = await (supabase as any).rpc("initialize_order_dispute", {
             p_order_id: id,
             p_reason: reason,
             p_details: "Consumer initiated via Institutional Interface V1.1"

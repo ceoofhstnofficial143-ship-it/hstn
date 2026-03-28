@@ -21,7 +21,7 @@ export const NotificationProtocol = {
 
         // 📝 Record in database for "In-App" notifications
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from("notifications")
                 .insert({
                     user_id: payload.userId,

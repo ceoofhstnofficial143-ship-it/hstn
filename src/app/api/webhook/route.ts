@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     );
 
     // 🕵️ 2. CENTRALIZED OBSERVABILITY (Standardized)
-    await supabaseAdmin.from("system_events").insert({
+    await (supabaseAdmin as any).from("system_events").insert({
         event_type: "webhook_received",
         source: 'webhook_api',
         status: 'success',
@@ -55,14 +55,14 @@ export async function POST(req: Request) {
 
         console.log(`[WEBHOOK MIRROR] Reconciling: ${rzp_payment_id}`);
 
-        const { data: session } = await supabaseAdmin
+        const { data: session } = await (supabaseAdmin as any)
             .from("checkout_sessions")
             .select("*")
             .eq("razorpay_order_id", rzp_order_id)
             .single();
 
         if (!session) {
-            await supabaseAdmin.from("system_events").insert({
+            await (supabaseAdmin as any).from("system_events").insert({
                 event_type: "order_failed",
                 source: "webhook_api",
                 status: "failed",
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         }
 
         // 🔒 Call DUAL-CHANNEL Idempotent RPC (V13.2)
-        const { data: orderId, error: rpcError } = await supabaseAdmin.rpc("place_order_after_payment", {
+        const { data: orderId, error: rpcError } = await (supabaseAdmin as any).rpc("place_order_after_payment", {
             p_cart: session.cart,
             p_payment_id: rzp_payment_id,
             p_razorpay_order_id: rzp_order_id,
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
         });
 
         if (rpcError) {
-             await supabaseAdmin.from("system_events").insert({
+             await (supabaseAdmin as any).from("system_events").insert({
                 event_type: "order_failed",
                 source: "webhook_api",
                 status: "failed",
@@ -94,25 +94,25 @@ export async function POST(req: Request) {
         }
 
         console.log(`[WEBHOOK MIRROR SUCCESS]: ${orderId}`);
-        await supabaseAdmin.rpc("release_checkout_lock", { p_user_id: session.user_id });
+        await (supabaseAdmin as any).rpc("release_checkout_lock", { p_user_id: session.user_id });
     }
 
     // 🟢 3. PAYMENT REFUNDED EVENT (Standardized)
     if (event.event === "payment.refunded") {
         const { id: rzp_payment_id, refund_id, amount_refunded } = event.payload.payment.entity;
         
-        await supabaseAdmin.from("payments").update({
+        await (supabaseAdmin as any).from("payments").update({
             refund_id: refund_id,
             refund_status: 'processed',
             refund_amount: amount_refunded / 100
         }).eq("payment_id", rzp_payment_id);
 
-        await supabaseAdmin.from("orders").update({
+        await (supabaseAdmin as any).from("orders").update({
             status: 'refunded',
             payment_status: 'refunded'
         }).eq("payment_id", rzp_payment_id);
 
-        await supabaseAdmin.from("system_events").insert({
+        await (supabaseAdmin as any).from("system_events").insert({
             event_type: "refund_processed",
             source: "webhook_api",
             status: "success",
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
     console.error("Webhook critical node error:", err);
     try {
         const supabaseErrorLog = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-        await supabaseErrorLog.from("system_events").insert({
+        await (supabaseErrorLog as any).from("system_events").insert({
             event_type: "system_error",
             source: "webhook_api",
             status: "failed",

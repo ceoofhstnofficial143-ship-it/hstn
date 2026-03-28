@@ -19,7 +19,7 @@ export default function OutfitBundleV2({ bundleId, productId, limit = 1 }: Outfi
     useEffect(() => {
         const fetchBundles = async () => {
             setLoading(true)
-            let query = supabase
+            let query = (supabase as any)
                 .from("outfit_bundles")
                 .select("*")
             
@@ -36,7 +36,7 @@ export default function OutfitBundleV2({ bundleId, productId, limit = 1 }: Outfi
             if (bundleError || !bundleData || bundleData.length === 0) {
                 if (productId) {
                     // Fallback to general bundles if product specific not found
-                    const { data: fallback } = await supabase.from("outfit_bundles").select("*").limit(limit)
+                    const { data: fallback } = await (supabase as any).from("outfit_bundles").select("*").limit(limit)
                     if (fallback) fetchProducts(fallback)
                     else setLoading(false)
                 } else {
@@ -51,7 +51,7 @@ export default function OutfitBundleV2({ bundleId, productId, limit = 1 }: Outfi
         const fetchProducts = async (bundleData: any[]) => {
             const bundlesWithProducts = await Promise.all(
                 bundleData.map(async (bundle) => {
-                    const { data: products } = await supabase
+                    const { data: products } = await (supabase as any)
                         .from("products")
                         .select("*")
                         .in("id", bundle.product_ids)

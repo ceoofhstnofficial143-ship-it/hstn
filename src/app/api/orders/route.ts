@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { createSecureAPIMiddleware } from '@/lib/api-security';
 
 /**
@@ -23,7 +23,7 @@ async function createOrderHandler(req: NextRequest, { user, validatedData }: any
       const sellerTotal = sellerItems.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0);
 
       // 1. Create Per-Seller Order
-      const { data: order, error: orderError } = await supabase
+      const { data: order, error: orderError } = await (supabaseAdmin as any)
         .from('orders')
         .insert([{
           buyer_id: user.id,
@@ -48,7 +48,7 @@ async function createOrderHandler(req: NextRequest, { user, validatedData }: any
         selected_size: item.size || 'N/A'
       }));
 
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await (supabaseAdmin as any)
         .from('order_items')
         .insert(orderItemsData);
 
@@ -58,7 +58,7 @@ async function createOrderHandler(req: NextRequest, { user, validatedData }: any
     }
 
     // 3. System Event Logging
-    await supabase.from('system_events').insert({
+    await (supabaseAdmin as any).from('system_events').insert({
       event_type: 'bulk_orders_created',
       source: 'order_api_v2',
       user_id: user.id,

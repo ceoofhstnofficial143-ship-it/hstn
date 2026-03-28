@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { getTrustTier } from "@/lib/trustTier"
 import { supabase } from "@/lib/supabase"
-import { Analytics } from "@/lib/analytics"
+import { Analytics, trackEvent } from "@/lib/analytics"
 import { LogisticsProtocol } from "@/lib/logistics"
 
 import AddressSelector from "@/components/checkout/AddressSelector"
@@ -42,12 +42,12 @@ export default function CheckoutPage() {
         
         // Fix for legacy items missing seller_id
         if (!sellerId) {
-          const { data: prod } = await supabase.from("products").select("user_id").eq("id", item.productId).single();
+          const { data: prod } = await (supabase as any).from("products").select("user_id").eq("id", item.productId).single();
           sellerId = prod?.user_id;
         }
 
         if (!item.trust && sellerId) {
-          const { data: trust } = await supabase
+          const { data: trust } = await (supabase as any)
             .from("trust_scores")
             .select("score, verified")
             .eq("user_id", sellerId)
@@ -82,6 +82,30 @@ export default function CheckoutPage() {
   const total = cartItems.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0)
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
+  const ensureRazorpayLoaded = async (): Promise<boolean> => {
+    if (typeof window === "undefined") return false
+    if ((window as any).Razorpay) return true
+
+    await new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector('script[data-razorpay-checkout="true"]') as HTMLScriptElement | null
+      if (existing) {
+        existing.addEventListener("load", () => resolve(), { once: true })
+        existing.addEventListener("error", () => reject(new Error("Failed to load Razorpay SDK")), { once: true })
+        return
+      }
+
+      const script = document.createElement("script")
+      script.src = "https://checkout.razorpay.com/v1/checkout.js"
+      script.async = true
+      script.setAttribute("data-razorpay-checkout", "true")
+      script.onload = () => resolve()
+      script.onerror = () => reject(new Error("Failed to load Razorpay SDK"))
+      document.body.appendChild(script)
+    })
+
+    return !!(window as any).Razorpay
+  }
+
   const handlePayment = async () => {
     if (!selectedAddress) {
       return alert("Logistics Context Error: Please select a shipping destination.")
@@ -100,11 +124,18 @@ export default function CheckoutPage() {
       return;
     }
 
+    trackEvent('checkout_interaction', { step: 'payment_init' })
     setProcessingStatus("Initializing Secure Protocol...");
     setLoading(true)
     setPaymentError(null);
 
     try {
+      setProcessingStatus("Preparing Secure Gateway...")
+      const sdkReady = await ensureRazorpayLoaded()
+      if (!sdkReady) {
+        throw new Error("Payment gateway failed to initialize. Please retry.")
+      }
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         alert("Authentication Required: Please sign in to initiate acquisition.")
@@ -284,7 +315,7 @@ export default function CheckoutPage() {
       try {
           const { data } = await supabase.auth.getUser();
           if (data?.user) {
-             await supabase.rpc("release_checkout_lock", { p_user_id: data.user.id });
+             await (supabase as any).rpc("release_checkout_lock", { p_user_id: data.user.id });
           }
       } catch (e) { console.error(e) }
     }

@@ -13,7 +13,7 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, fullScreen = false }: ProductCardProps) {
     const updateProductViews = async (productId: string) => {
-        await supabase
+        await (supabase as any)
             .from("products")
             .update({ views: (product.views || 0) + 1 })
             .eq("id", productId);
@@ -108,7 +108,7 @@ export default function ProductCard({ product, fullScreen = false }: ProductCard
                             return
                         }
                         try {
-                            const { error } = await supabase
+                            const { error } = await (supabase as any)
                                 .from("wishlist")
                                 .insert([{ user_id: user.id, product_id: product.id }])
 

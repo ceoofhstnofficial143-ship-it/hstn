@@ -1,9 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
+import { createSecureAPIMiddleware } from "@/lib/api-security";
 
-export async function POST(req: Request) {
+async function reconcileHandler(req: NextRequest, { validatedData }: any) {
   try {
-    const { payment_id, razorpay_order_id, reason } = await req.json();
+    const { payment_id, razorpay_order_id, reason } = validatedData;
 
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +12,7 @@ export async function POST(req: Request) {
     );
 
     // 🕵️ 1. RESOLVE INTENT (Original Session)
-    const { data: session } = await supabaseAdmin
+    const { data: session } = await (supabaseAdmin as any)
         .from("checkout_sessions")
         .select("*")
         .eq("razorpay_order_id", razorpay_order_id)
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
     if (!session) throw new Error(`[RECONCILE CRITICAL] No original intent found for ${razorpay_order_id}. RECOVERY IMPOSSIBLE.`);
 
     // 🔐 2. CALL MASTER RPC (Safe Idempotency)
-    const { data: order_id, error: rpcError } = await supabaseAdmin.rpc("place_order_after_payment", {
+    const { data: order_id, error: rpcError } = await (supabaseAdmin as any).rpc("place_order_after_payment", {
         p_cart: session.cart,
         p_payment_id: payment_id,
         p_razorpay_order_id: razorpay_order_id,
@@ -32,14 +33,14 @@ export async function POST(req: Request) {
     if (rpcError) throw new Error(`[RECONCILE FAILED]: ${rpcError.message}`);
 
     // 📝 3. AUDIT TRAIL RECORD
-    await supabaseAdmin.from("admin_actions").insert({
+    await (supabaseAdmin as any).from("admin_actions").insert({
         action: 'manual_reconciliation_run',
         target_id: payment_id,
         metadata: { reason, session_id: session.id, reconstructed_order_id: order_id }
     });
 
     // 📡 4. SYSTEM EVENT RECORD
-    await supabaseAdmin.from("system_events").insert({
+    await (supabaseAdmin as any).from("system_events").insert({
         event_type: 'manual_reconciliation_success',
         source: 'admin_reconcile_api',
         payment_id: payment_id,
@@ -54,3 +55,14 @@ export async function POST(req: Request) {
      return NextResponse.json({ error: "Reconciliation Protocol Failure: " + err.message }, { status: 500 });
   }
 }
+
+// 🔐 SECURE ENDPOINT WRAPPER
+export const POST = createSecureAPIMiddleware({
+  requireAuth: true,
+  requiredRole: 'admin',
+  validateInput: {
+    payment_id: { required: true, type: 'string' },
+    razorpay_order_id: { required: true, type: 'string' },
+    reason: { required: true, type: 'string' }
+  }
+})(reconcileHandler as any);

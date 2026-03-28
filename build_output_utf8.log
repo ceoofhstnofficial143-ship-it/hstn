@@ -1,0 +1,93 @@
+﻿
+> hstnlx@0.1.0 build
+> next build --webpack
+
+Γû▓ Next.js 16.1.6 (webpack)
+- Environments: .env.local
+
+npm : ΓÜá The "middleware" 
+file convention is 
+deprecated. Please use 
+"proxy" instead. Learn more: h
+ttps://nextjs.org/docs/message
+s/middleware-to-proxy
+At line:1 char:1
++ npm run build > 
+build_output.log 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (ΓÜá The "  
+  middle...leware-to-proxy:   
+ String) [], RemoteExcepti    
+on
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 14.2s
+  Running TypeScript ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/37) ...
+  Generating static pages using 3 workers (9/37) 
+  Generating static pages using 3 workers (18/37) 
+  Generating static pages using 3 workers (27/37) 
+Γ£ô Generating static pages using 3 workers (37/37) in 2.6s
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+Γöî Γùï /
+Γö£ Γùï /_not-found
+Γö£ Γùï /admin
+Γö£ Γùï /admin/analytics
+Γö£ Γùï /admin/disputes
+Γö£ Γùï /admin/marketplace-intelligence
+Γö£ Γùï /admin/merchants
+Γö£ Γùï /admin/orders
+Γö£ Γùï /admin/products
+Γö£ Γùï /admin/reconciliation
+Γö£ Γùï /admin/settlements
+Γö£ Γùï /admin/test-rpc
+Γö£ Γùï /admin/traffic
+Γö£ Γùï /admin/users
+Γö£ ╞Æ /api/addresses
+Γö£ ╞Æ /api/addresses/[id]
+Γö£ ╞Æ /api/addresses/[id]/set-default
+Γö£ ╞Æ /api/admin/reconcile-payment
+Γö£ ╞Æ /api/admin/resolve-dispute
+Γö£ ╞Æ /api/create-order
+Γö£ ╞Æ /api/orders
+Γö£ ╞Æ /api/payout
+Γö£ ╞Æ /api/refund
+Γö£ ╞Æ /api/verify-payment
+Γö£ ╞Æ /api/webhook
+Γö£ Γùï /cart
+Γö£ Γùï /checkout
+Γö£ ╞Æ /checkout/success
+Γö£ Γùï /login
+Γö£ Γùï /orders
+Γö£ ╞Æ /orders/[id]
+Γö£ ╞Æ /orders/dispute/[id]
+Γö£ ╞Æ /product/[id]
+Γö£ Γùï /products
+Γö£ ╞Æ /products/edit/[id]
+Γö£ Γùï /profile
+Γö£ Γùï /profile/addresses
+Γö£ Γùï /seller-orders
+Γö£ ╞Æ /seller/[id]
+Γö£ Γùï /seller/dashboard
+Γö£ Γùï /seller/onboarding
+Γö£ Γùï /seller/payouts
+Γö£ Γùï /settings
+Γö£ Γùï /signup
+Γö£ Γùï /test-upload
+Γö£ Γùï /upload
+Γöö Γùï /wishlist
+
+
+╞Æ Proxy (Middleware)
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

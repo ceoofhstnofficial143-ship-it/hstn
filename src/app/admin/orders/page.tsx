@@ -39,7 +39,7 @@ export default function AdminOrders() {
 
     const updateStatus = async (id: string, newStatus: string) => {
         // 1. Update the order status
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from("orders")
             .update({ status: newStatus })
             .eq("id", id)
@@ -57,7 +57,7 @@ export default function AdminOrders() {
         }
         const payoutStatus = payoutStatusMap[newStatus]
         if (payoutStatus) {
-            await supabase
+            await (supabase as any)
                 .from("seller_payouts")
                 .update({ status: payoutStatus })
                 .eq("order_id", id)

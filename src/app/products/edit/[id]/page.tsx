@@ -33,7 +33,7 @@ export default function EditProductPage() {
                 return
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("products")
                 .select("*")
                 .eq("id", productId)
@@ -65,7 +65,7 @@ export default function EditProductPage() {
         if (!user) return
 
         // 1. Update Product
-        const { error } = await supabase
+        const { error } = await (supabase as any)
             .from("products")
             .update({
                 title,
@@ -85,7 +85,7 @@ export default function EditProductPage() {
             alert(`Update Failed: ${error.message}`)
         } else {
             // 2. Sync Variant
-            const { error: variantError } = await supabase
+            const { error: variantError } = await (supabase as any)
                 .from("product_variants")
                 .upsert({
                     product_id: productId,

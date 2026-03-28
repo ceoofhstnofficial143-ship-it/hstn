@@ -22,13 +22,13 @@ const Breadcrumbs = ({ category, title }: { category: string; title: string }) =
         <span className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center group-hover:border-black transition-colors">←</span>
         Back
       </button>
-      <div className="h-4 w-px bg-gray-100" />
-      <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-[0.4em] text-gray-300">
+      <div className="h-4 w-px bg-gray-100 hidden sm:block" />
+      <div className="hidden sm:flex items-center gap-3 text-[9px] font-black uppercase tracking-[0.4em] text-gray-300">
         <Link href="/" className="hover:text-black transition-colors">Archive</Link>
         <span>/</span>
-        <Link href={`/?category=${category?.toLowerCase()}`} className="text-gray-400 hover:text-black transition-colors">{category || "Fleet"}</Link>
+        <Link href={`/?category=${category?.toLowerCase()}`} className="text-gray-400 hover:text-black transition-colors leading-none">{category || "Fleet"}</Link>
         <span>/</span>
-        <span className="text-black italic">{title}</span>
+        <span className="text-black italic truncate max-w-[100px] md:max-w-none">{title}</span>
       </div>
     </nav>
   )
@@ -62,38 +62,27 @@ const ImageGallery = ({ media, activeMedia, setActiveMedia, title, stock }: { me
     setZoomStyle({ ...zoomStyle, display: 'none' })
   }
 
-  // 🔄 Sync mobile scroll when activeMedia changes (e.g., thumbnail clicked)
   useEffect(() => {
     if (window.innerWidth < 1024 && scrollRef.current) {
-        const index = media.findIndex(m => m.url === activeMedia.url);
-        if (index !== -1) {
-            const currentScrollIndex = Math.round(scrollRef.current.scrollLeft / scrollRef.current.offsetWidth);
-            if (index !== currentScrollIndex) {
-                scrollRef.current.scrollTo({
-                    left: index * scrollRef.current.offsetWidth,
-                    behavior: 'smooth'
-                });
-            }
-        }
+      const index = media.findIndex(m => m.url === activeMedia.url);
+      if (index !== -1) {
+        scrollRef.current.scrollTo({
+          left: index * scrollRef.current.offsetWidth,
+          behavior: 'smooth'
+        });
+      }
     }
   }, [activeMedia]);
 
-  const scrollTimeout = useRef<NodeJS.Timeout | null>(null)
-  
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (window.innerWidth >= 1024) return
     const scrollLeft = e.currentTarget.scrollLeft
     const width = e.currentTarget.offsetWidth
     const index = Math.round(scrollLeft / width)
-    
-    if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
-    
-    scrollTimeout.current = setTimeout(() => {
-        if (media[index] && media[index].url !== activeMedia.url) {
-            setActiveMedia(media[index])
-            if (media[index].type === 'video') setIsVideoPlaying(true)
-        }
-    }, 50)
+
+    if (media[index] && media[index].url !== activeMedia.url) {
+      setActiveMedia(media[index])
+    }
   }
 
   const handleVideoClick = () => {
@@ -108,56 +97,33 @@ const ImageGallery = ({ media, activeMedia, setActiveMedia, title, stock }: { me
     }
   }
 
-  const getMediaIcon = (type: 'image' | 'video') => {
-    if (type === 'video') {
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M8 5v14l11-7z" />
-        </svg>
-      )
-    }
-    return (
-      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    )
-  }
-
   return (
     <div className="flex flex-col-reverse lg:flex-row gap-6 animate-in fade-in slide-in-from-left-8 duration-1000">
+      {/* 🖼️ Thumbnails Grid (Left Desktop Only) */}
       <div className="hidden lg:flex lg:flex-col gap-3 overflow-y-auto lg:max-h-[700px] scrollbar-none px-1">
         {media.map((item, idx) => (
           <button
             key={idx}
             onClick={() => {
               setActiveMedia(item)
-              if (item.type === 'video') {
-                setIsVideoPlaying(true)
-                setTimeout(() => videoRef.current?.play(), 100)
-              } else {
-                setIsVideoPlaying(false)
-                videoRef.current?.pause()
-              }
+              setIsVideoPlaying(item.type === 'video')
             }}
-            className={`relative w-24 h-32 flex-shrink-0 rounded-2xl overflow-hidden border-2 transition-all duration-500 group ${activeMedia.url === item.url ? 'border-primary ring-2 ring-primary/20 scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
+            className={`relative w-24 h-32 flex-shrink-0 rounded-2xl overflow-hidden border-2 transition-all duration-500 group ${activeMedia.url === item.url ? 'border-primary ring-2 ring-primary/20 scale-105 shadow-xl' : 'border-transparent opacity-60 hover:opacity-100'}`}
           >
             {item.type === 'video' ? (
-              <div className="relative w-full h-full bg-gray-900">
-                <video src={item.url} className="object-cover w-full h-full" muted playsInline />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                  <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+              <div className="relative w-full h-full bg-black">
+                <video src={item.url} className="object-cover w-full h-full opacity-60" muted playsInline />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20">
+                    <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   </div>
                 </div>
               </div>
             ) : (
-              <Image src={item.url} alt={`${title} ${item.label || idx}`} fill className="object-cover" />
+              <Image src={item.url} alt={`${title} ${idx}`} fill className="object-cover" />
             )}
-            <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-white p-1 rounded-md">
-              {getMediaIcon(item.type)}
-            </div>
             {item.label && (
-              <div className="absolute top-2 left-2 bg-primary text-black text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded">
+              <div className="absolute top-2 left-2 bg-primary text-black text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded shadow-sm">
                 {item.label}
               </div>
             )}
@@ -165,20 +131,30 @@ const ImageGallery = ({ media, activeMedia, setActiveMedia, title, stock }: { me
         ))}
       </div>
 
-      <div className="flex-1 relative">
-        <div ref={scrollRef} onScroll={handleScroll} className="lg:hidden flex overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-none aspect-[3/4] rounded-[2rem] shadow-xl">
+      {/* 🎬 Main Viewport */}
+      <div className="flex-1 relative group/gallery">
+        {/* Mobile Swipe Layer */}
+        <div ref={scrollRef} onScroll={handleScroll} className="lg:hidden flex overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-none aspect-[3/4] rounded-[2.5rem] shadow-2xl bg-gray-50">
           {media.map((item, idx) => (
             <div key={idx} className="flex-shrink-0 w-full h-full snap-start snap-always relative">
               {item.type === 'video' ? (
-                <video
-                  ref={idx === media.findIndex(m => m.url === activeMedia.url) ? videoRef : undefined}
-                  src={item.url}
-                  className="object-cover w-full h-full"
-                  autoPlay
-                  muted
-                  playsInline
-                  loop
-                />
+                <div className="relative w-full h-full" onClick={handleVideoClick}>
+                  <video
+                    ref={activeMedia.url === item.url ? videoRef : undefined}
+                    src={item.url}
+                    className="object-cover w-full h-full"
+                    playsInline
+                    loop
+                    muted
+                  />
+                  {!isVideoPlaying && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                      <div className="w-20 h-20 rounded-full bg-white/30 backdrop-blur-xl flex items-center justify-center border border-white/30 shadow-2xl">
+                        <svg className="w-10 h-10 text-white ml-1.5 drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <Image src={item.url} alt={title} fill className="object-cover" priority={idx === 0} />
               )}
@@ -186,31 +162,54 @@ const ImageGallery = ({ media, activeMedia, setActiveMedia, title, stock }: { me
           ))}
         </div>
 
-        <div className="hidden lg:block relative aspect-[3/4] rounded-[2.5rem] overflow-hidden bg-gray-50 border border-gray-100 group cursor-crosshair shadow-2xl transition-all duration-700"
+        {/* Desktop View Layer */}
+        <div className="hidden lg:block relative aspect-[3/4] rounded-[2.5rem] overflow-hidden bg-gray-100 border border-gray-100 group cursor-crosshair shadow-2xl transition-all duration-700"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}>
           {activeMedia.type === 'video' ? (
             <div className="relative w-full h-full" onClick={handleVideoClick}>
-              <video ref={videoRef} src={activeMedia.url} className="object-cover w-full h-full" autoPlay={isVideoPlaying} muted playsInline loop />
-              <div className={`absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity duration-300 ${isVideoPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
-                <div className="w-20 h-20 rounded-full bg-white/90 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
+              <video ref={videoRef} src={activeMedia.url} className="object-cover w-full h-full" playsInline loop muted={!isVideoPlaying} />
+              <div className={`absolute inset-0 flex items-center justify-center bg-black/10 transition-all duration-500 ${isVideoPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
+                <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-3xl flex items-center justify-center shadow-3xl border border-white/20 hover:scale-110 transition-transform">
                   {isVideoPlaying ? (
-                    <svg className="w-8 h-8 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
+                    <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
                   ) : (
-                    <svg className="w-8 h-8 text-black ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                    <svg className="w-10 h-10 text-white ml-2 shadow-text" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   )}
                 </div>
+              </div>
+              <div className="absolute bottom-10 left-10 py-3 px-6 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Trusted Motion Proof 🎥</p>
               </div>
             </div>
           ) : (
             <>
-              <Image src={activeMedia.url || "/placeholder.jpg"} alt={title} fill className="object-cover transition-transform duration-1000 group-hover:scale-105" priority />
+              <Image src={activeMedia.url || "/placeholder.jpg"} alt={title} fill className="object-cover transition-transform duration-1000 group-hover:scale-105" />
               <div
                 className="absolute inset-0 pointer-events-none bg-no-repeat transition-opacity duration-300 z-10"
-                style={{ ...zoomStyle, backgroundSize: '250%', opacity: zoomStyle.display === 'block' ? 1 : 0 }}
+                style={{ ...zoomStyle, backgroundSize: '300%', opacity: zoomStyle.display === 'block' ? 1 : 0 }}
               />
             </>
           )}
+        </div>
+
+        {/* 🔢 Dynamic Media HUD (Mobile Overlay) */}
+        <div className="pointer-events-none sticky bottom-6 left-0 right-0 z-20 flex justify-center lg:hidden">
+          <div className="flex gap-2 px-6 py-2.5 bg-black/60 backdrop-blur-2xl rounded-full ring-1 ring-white/10 shadow-2xl">
+            {media.map((item, idx) => (
+              <div
+                key={idx}
+                className={`h-1.5 rounded-full transition-all duration-700 flex items-center justify-center ${media.findIndex(m => m.url === activeMedia?.url) === idx
+                  ? 'w-10 bg-primary'
+                  : 'w-2 bg-white/20'
+                  }`}
+              >
+                {item.type === 'video' && (
+                  <span className={`text-[6px] transition-opacity duration-500 ${media.findIndex(m => m.url === activeMedia.url) === idx ? 'opacity-100' : 'opacity-0'}`}>🎥</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -221,6 +220,7 @@ const PhotoReviews = ({ productId }: { productId: string }) => {
   const [reviews, setReviews] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showReviewForm, setShowReviewForm] = useState(false)
+  const [submittingReview, setSubmittingReview] = useState(false)
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', photo_url: '' })
 
   useEffect(() => {
@@ -228,39 +228,62 @@ const PhotoReviews = ({ productId }: { productId: string }) => {
   }, [productId])
 
   const fetchReviews = async () => {
-    const { data, error } = await supabase
-      .from("reviews")
-      .select(`*, profiles!reviews_user_id_fkey(username, avatar_url)`)
-      .eq("product_id", productId)
-      .order("created_at", { ascending: false })
-      .limit(8)
+    try {
+      const { data, error } = await (supabase as any)
+        .from("reviews")
+        .select(`*, profiles(username, avatar_url)`) // Simplified hint
+        .eq("product_id", productId)
+        .order("created_at", { ascending: false })
+        .limit(8)
 
-    if (!error && data) setReviews(data)
+      if (error) {
+        console.error("Fetch Error:", error);
+      } else if (data) {
+        setReviews(data)
+      }
+    } catch (e) {
+      console.error("Reviews fetch failure:", e);
+    }
     setLoading(false)
   }
 
   const submitReview = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return alert("Sign in to submit your fit.")
+    if (!newReview.comment.trim()) return alert("Deployment Protocol: Review content required.")
 
-    const { error } = await supabase.from("reviews").insert({
-      product_id: productId,
-      user_id: user.id,
-      rating: newReview.rating,
-      comment: newReview.comment,
-      photo_url: newReview.photo_url || null,
-      user_name: user.email?.split('@')[0] || 'Anonymous'
-    })
+    setSubmittingReview(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setSubmittingReview(false)
+        return alert("Authentication Required: Sign in to submit your vault fit.")
+      }
 
-    if (error) {
-      alert(error.message.includes('delivered') ? "Only buyers with delivered orders can review." : error.message)
-      return
+      const { error } = await (supabase as any).from("reviews").insert({
+        product_id: productId,
+        user_id: user.id,
+        rating: newReview.rating,
+        comment: newReview.comment.trim(),
+        photo_url: newReview.photo_url || null,
+        user_name: user.email?.split('@')[0] || 'Anonymous'
+      })
+
+      if (error) {
+        console.error("Insert Error:", error)
+        alert(error.message.includes('delivered') ? "Archival Warning: Only buyers with confirmed deliveries can review." : `Protocol Failure: ${error.message}`)
+        setSubmittingReview(false)
+        return
+      }
+
+      setNewReview({ rating: 5, comment: '', photo_url: '' })
+      setShowReviewForm(false)
+      fetchReviews()
+      alert("Asset Review Secured: Community feedback synchronized.")
+    } catch (err) {
+      console.error("Critical Review Failure:", err)
+      alert("Institutional Protocol Internal Failure. Check archive logs.")
+    } finally {
+      setSubmittingReview(false)
     }
-
-    setNewReview({ rating: 5, comment: '', photo_url: '' })
-    setShowReviewForm(false)
-    fetchReviews()
-    alert("Review submitted successfully!")
   }
 
   const averageRating = reviews.length > 0
@@ -272,13 +295,13 @@ const PhotoReviews = ({ productId }: { productId: string }) => {
   if (loading) return null
 
   return (
-    <div className="mt-32 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-      <div className="flex flex-col md:flex-row items-center justify-between mb-16 gap-12">
+    <div className="mt-20 md:mt-32 animate-in fade-in slide-in-from-bottom-8 duration-1000 px-4 md:px-6 lg:px-0 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row items-center justify-between mb-10 md:mb-16 gap-8 md:gap-12">
         <div className="w-full md:w-1/3 text-center md:text-left">
-          <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none mb-6">Community Feedback</h2>
+          <h2 className="text-2xl md:text-4xl font-black italic uppercase tracking-tighter leading-none mb-4 md:mb-6">Community Feedback</h2>
           <div className="flex flex-col items-center md:items-start">
-            <div className="text-7xl font-black italic tracking-tighter text-black mb-2">{averageRating}</div>
-            <div className="flex text-primary text-2xl mb-4">{renderStars(Math.round(Number(averageRating)))}</div>
+            <div className="text-5xl md:text-7xl font-black italic tracking-tighter text-black mb-2">{averageRating}</div>
+            <div className="flex text-primary text-xl md:text-2xl mb-4">{renderStars(Math.round(Number(averageRating)))}</div>
             <button onClick={() => setShowReviewForm(!showReviewForm)} className="mt-8 h-14 w-full md:w-auto px-8 bg-black text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-primary hover:text-black transition-all">Submit Your Fit</button>
           </div>
         </div>
@@ -301,7 +324,13 @@ const PhotoReviews = ({ productId }: { productId: string }) => {
               <textarea value={newReview.comment} onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })} placeholder="Share your thoughts on this drop..." className="w-full h-32 p-4 border-2 border-gray-200 rounded-2xl text-sm focus:border-black focus:outline-none resize-none" />
             </div>
             <div className="flex gap-4">
-              <button onClick={submitReview} className="flex-1 h-14 bg-black text-white rounded-2xl font-black uppercase tracking-widest text-[11px] hover:bg-primary hover:text-black transition-all">Submit Review</button>
+              <button
+                onClick={submitReview}
+                disabled={submittingReview}
+                className={`flex-1 h-14 bg-black text-white rounded-2xl font-black uppercase tracking-widest text-[11px] hover:bg-primary hover:text-black transition-all flex items-center justify-center ${submittingReview ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {submittingReview ? "Archiving..." : "Submit Review"}
+              </button>
               <button onClick={() => setShowReviewForm(false)} className="h-14 px-8 border-2 border-gray-200 rounded-2xl font-black uppercase tracking-widest text-[11px] hover:border-black transition-all">Cancel</button>
             </div>
           </div>
@@ -309,7 +338,7 @@ const PhotoReviews = ({ productId }: { productId: string }) => {
       )}
 
       {reviews.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {reviews.map((review) => (
             <div key={review.id} className="group relative aspect-[4/5] rounded-[2rem] overflow-hidden bg-gray-100 shadow-xl transition-all duration-700 hover:shadow-2xl hover:-translate-y-2">
               {review.photo_url ? (
@@ -343,19 +372,41 @@ const SizeGuide = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }
 }
 
 const SellerCard = ({ profile, userId }: { profile: any; userId: string }) => (
-  <div className="p-8 bg-black rounded-[2.5rem] text-white flex items-center justify-between group overflow-hidden shadow-2xl transition-all duration-500 hover:scale-[1.02]">
-    <div className="flex items-center gap-6 relative z-10">
-      <div className="w-16 h-16 rounded-full border-2 border-primary/50 overflow-hidden bg-gray-800 relative">
-        {profile?.avatar_url ? <Image src={profile.avatar_url} alt="Seller" fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center font-black text-xl text-primary italic bg-primary/10 uppercase">{profile?.username?.charAt(0) || "P"}</div>}
-      </div>
-      <div>
-        <div className="flex items-center gap-3">
-          <Link href={`/seller/${userId}`} className="text-xl font-black italic tracking-tighter hover:text-primary transition-colors uppercase">@{profile?.username || "elite_scout"}</Link>
-          <span className="bg-primary text-black px-1.5 py-0.5 rounded text-[8px] font-black uppercase animate-pulse">Verified</span>
+  <div className="p-8 bg-black rounded-[2.5rem] text-white space-y-8 group overflow-hidden shadow-2xl transition-all duration-500 hover:scale-[1.02] border-b-4 border-primary">
+    <div className="absolute top-0 right-0 p-8 opacity-5 text-8xl pointer-events-none group-hover:scale-150 transition-transform duration-1000 uppercase">Archive</div>
+    <div className="flex items-center justify-between relative z-10">
+      <div className="flex items-center gap-6">
+        <div className="w-16 h-16 rounded-full border-2 border-primary/50 overflow-hidden bg-gray-800 relative">
+          {profile?.avatar_url ? <Image src={profile.avatar_url} alt="Seller" fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center font-black text-xl text-primary italic bg-primary/10 uppercase">{profile?.username?.charAt(0) || "P"}</div>}
+        </div>
+        <div>
+          <div className="flex items-center gap-3">
+            <Link href={`/seller/${userId}`} className="text-xl font-black italic tracking-tighter hover:text-primary transition-colors uppercase">@{profile?.username || "elite_scout"}</Link>
+            <span className="bg-primary text-black px-1.5 py-0.5 rounded text-[8px] font-black uppercase animate-pulse">Official Scout</span>
+          </div>
+          <div className="flex items-center gap-3 mt-1.5">
+            <span className="text-[10px] text-white/40 font-black uppercase tracking-widest">Scout Grade:</span>
+            <span className="text-[10px] text-primary font-black uppercase tracking-widest">S-Tier (Legit)</span>
+          </div>
         </div>
       </div>
+      <FollowButton sellerId={userId} />
     </div>
-    <div className="relative z-10"><FollowButton sellerId={userId} /></div>
+
+    <div className="grid grid-cols-3 gap-6 pt-6 border-t border-white/10 relative z-10">
+      <div className="text-center">
+        <p className="text-[7px] font-black uppercase tracking-[0.4em] text-white/30 mb-1">Fulfillment</p>
+        <p className="text-xs font-black italic tracking-tighter text-white">99.8%</p>
+      </div>
+      <div className="text-center border-x border-white/5">
+        <p className="text-[7px] font-black uppercase tracking-[0.4em] text-white/30 mb-1">Dispatch</p>
+        <p className="text-xs font-black italic tracking-tighter text-white">2.4h AVG</p>
+      </div>
+      <div className="text-center">
+        <p className="text-[7px] font-black uppercase tracking-[0.4em] text-white/30 mb-1">Trades</p>
+        <p className="text-xs font-black italic tracking-tighter text-white">412 SECURED</p>
+      </div>
+    </div>
   </div>
 )
 
@@ -376,36 +427,91 @@ export default function ProductClient() {
   const [variants, setVariants] = useState<any[]>([])
   const [showSizeGuide, setShowSizeGuide] = useState(false)
   const [activeTab, setActiveTab] = useState('description')
+  const [timeLeft, setTimeLeft] = useState("02:14:55")
+  const [showSoldOutSizes, setShowSoldOutSizes] = useState(true)
+  const [uiToast, setUiToast] = useState("")
+
+  useEffect(() => {
+    // ⏳ Dynamic Urgency Countdown Logic
+    const targetDate = new Date();
+    targetDate.setHours(targetDate.getHours() + 2);
+    targetDate.setMinutes(targetDate.getMinutes() + 14);
+
+    const timer = setInterval(() => {
+      const now = new Date().getTime();
+      const distance = targetDate.getTime() - now;
+
+      if (distance < 0) {
+        clearInterval(timer);
+        setTimeLeft("00:00:00");
+        return;
+      }
+
+      const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((distance % (1000 * 60)) / 1000);
+
+      setTimeLeft(
+        `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+      );
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     fetchProduct()
   }, [productId])
 
+  useEffect(() => {
+    if (!uiToast) return
+    const timer = setTimeout(() => setUiToast(""), 2200)
+    return () => clearTimeout(timer)
+  }, [uiToast])
+
   const fetchProduct = async () => {
-    const { data, error } = await supabase.from("products").select(`*, profiles!products_user_id_fkey(username, avatar_url)`).eq("id", productId).single()
+    const { data, error } = await (supabase as any)
+      .from("products")
+      .select(`*, profiles!products_user_id_fkey(username, avatar_url)`)
+      .eq("id", productId)
+      .single()
+
     if (error || !data) { setProduct(null); setLoading(false); return; }
+
     setProduct(data)
     setLoading(false)
+
     const initialMedia: MediaItem[] = [
       { url: data.image_url, type: 'image', label: 'hero' },
       ...(data.additional_images || []).map((url: string) => ({ url, type: 'image' as const })),
       ...(data.video_url ? [{ url: data.video_url, type: 'video' as const, label: 'video' }] : [])
     ]
+
     if (initialMedia.length > 0) setActiveMedia(initialMedia[0])
     setViewersCount(Math.floor(Math.random() * 45) + 5)
-    
+
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: wish } = await supabase.from("wishlist").select("id").eq("user_id", user.id).eq("product_id", productId).single()
+      const { data: wish } = await (supabase as any)
+        .from("wishlist")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("product_id", productId)
+        .single()
       setInWishlist(!!wish)
     }
-    
+
     if (data.category) {
-      const { data: related } = await supabase.from("products").select("id, title, price, image_url, views, stock, profiles!products_user_id_fkey(username)").eq("category", data.category).neq("id", productId).limit(4)
+      const { data: related } = await (supabase as any)
+        .from("products")
+        .select("id, title, price, image_url, views, stock, profiles!products_user_id_fkey(username)")
+        .eq("category", data.category)
+        .neq("id", productId)
+        .limit(4)
       if (related) setRelatedProducts(related)
     }
-    
-    const { data: variantData } = await supabase.from("product_variants").select("*").eq("product_id", productId)
+
+    const { data: variantData } = await (supabase as any).from("product_variants").select("*").eq("product_id", productId)
     if (variantData && variantData.length > 0) {
       setVariants(variantData)
       if (variantData[0].color) setSelectedColor(variantData[0].color)
@@ -416,9 +522,9 @@ export default function ProductClient() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return alert("Sign in to save drops.")
     if (inWishlist) {
-      await supabase.from("wishlist").delete().eq("user_id", user.id).eq("product_id", productId); setInWishlist(false)
+      await (supabase as any).from("wishlist").delete().eq("user_id", user.id).eq("product_id", productId); setInWishlist(false)
     } else {
-      await supabase.from("wishlist").insert({ user_id: user.id, product_id: productId }); setInWishlist(true)
+      await (supabase as any).from("wishlist").insert({ user_id: user.id, product_id: productId }); setInWishlist(true)
     }
   }
 
@@ -427,30 +533,69 @@ export default function ProductClient() {
     return variants.find(v => v.size === size && (!color || v.color === color))?.price || product?.price || 0
   }
 
+  const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"]
+  const sizeMap = variants.reduce<Map<string, { size: string; stock: number }>>((acc, v) => {
+    const size = String(v.size || "").toUpperCase()
+    if (!size) return acc
+
+    const current = acc.get(size)
+    if (current) {
+      current.stock += Number(v.stock || 0)
+    } else {
+      acc.set(size, { size, stock: Number(v.stock || 0) })
+    }
+    return acc
+  }, new Map<string, { size: string; stock: number }>())
+
+  const sizeOptions = Array.from<{ size: string; stock: number }>(
+    sizeMap.values()
+  ).sort((a: { size: string; stock: number }, b: { size: string; stock: number }) => {
+    const aIdx = SIZE_ORDER.indexOf(a.size.toUpperCase())
+    const bIdx = SIZE_ORDER.indexOf(b.size.toUpperCase())
+    if (aIdx === -1 && bIdx === -1) return a.size.localeCompare(b.size)
+    if (aIdx === -1) return 1
+    if (bIdx === -1) return -1
+    return aIdx - bIdx
+  })
+
+  const visibleSizeOptions = showSoldOutSizes ? sizeOptions : sizeOptions.filter(v => v.stock > 0)
+  const selectedSizeStock = selectedSize
+    ? sizeOptions.find(v => v.size === selectedSize)?.stock ?? 0
+    : 0
+  const canPurchase = !!selectedSize && selectedSizeStock > 0
+
   const addToCart = () => {
     if (!selectedSize) return alert("Select protocol size.")
+    if (selectedSizeStock <= 0) return alert("Selected size is out of stock.")
     const cart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
     const variantPrice = getPriceForVariant(selectedSize, selectedColor || undefined)
-    
-    // ⚔️ INJECT SELLER_ID (Distributed Transaction Key)
-    cart.push({ 
-        productId, 
-        seller_id: product.user_id, // The vendor's ID
-        title: product.title, 
-        price: variantPrice, 
-        image: product.image_url, 
-        size: selectedSize, 
-        color: selectedColor, 
-        qty: quantity 
-    })
-    
-    localStorage.setItem("hstnlx_cart", JSON.stringify(cart)); 
+
+    const existingIdx = cart.findIndex((i: any) => i.productId === productId && i.size === selectedSize && (!selectedColor || i.color === selectedColor))
+
+    if (existingIdx > -1) {
+      cart[existingIdx].qty = (cart[existingIdx].qty || 0) + quantity
+      cart[existingIdx].price = variantPrice
+    } else {
+      cart.push({
+        productId,
+        seller_id: product.user_id,
+        title: product.title,
+        price: variantPrice,
+        image: product.image_url,
+        size: selectedSize,
+        color: selectedColor,
+        qty: quantity
+      })
+    }
+
+    localStorage.setItem("hstnlx_cart", JSON.stringify(cart));
     window.dispatchEvent(new Event("hstnlx-cart-updated"))
-    alert("Asset secured in bag.")
+    alert(`Success: ${quantity} piece(s) of ${product.title} (Size ${selectedSize}) secured in bag.`)
   }
 
   const buyNow = () => {
     if (!selectedSize) return alert("Select protocol size.")
+    if (selectedSizeStock <= 0) return alert("Selected size is out of stock.")
     addToCart(); router.push("/cart")
   }
 
@@ -474,57 +619,56 @@ export default function ProductClient() {
 
   const media: MediaItem[] = [
     { url: product.image_url, type: 'image', label: 'hero' },
-    ...(product.additional_images || []).map((url: string, idx: number) => ({ 
-      url, 
-      type: 'image' as const, 
-      label: ['front', 'back', 'fabric', 'model', 'lifestyle'][idx % 5] 
+    ...(product.additional_images || []).map((url: string, idx: number) => ({
+      url,
+      type: 'image' as const,
+      label: ['front', 'back', 'fabric', 'model', 'lifestyle'][idx % 5]
     })),
     ...(product.video_url ? [{ url: product.video_url, type: 'video' as const, label: 'motion' }] : [])
   ]
 
+  const productAttributes = (product?.model_info?.attributes || {}) as {
+    material?: string
+    pattern?: string
+    sleeveType?: string
+    neckline?: string
+    occasion?: string
+    washCare?: string
+  }
+  const shippingInfo = (product?.model_info?.shipping || {}) as {
+    dispatchHours?: number
+    returnWindowDays?: number
+    packageWeight?: number
+    codEnabled?: boolean
+  }
+
   return (
-    <div className="min-h-screen bg-white text-black selection:bg-primary selection:text-black">
-      <div className="max-w-7xl mx-auto px-6 py-12 lg:py-20">
+    <div className="min-h-screen bg-white text-black selection:bg-primary selection:text-black overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-12 lg:py-20">
         <div className="flex flex-col lg:flex-row gap-16 xl:gap-24 items-start">
-          
+
           {/* 🖼️ GALLERY PROTOCOL (Left) */}
           <div className="w-full lg:w-[60%] space-y-8">
             <Breadcrumbs category={product.category} title={product.title} />
             <div className="relative group">
               {activeMedia && (
-                <ImageGallery 
-                  media={media} 
-                  activeMedia={activeMedia} 
-                  setActiveMedia={setActiveMedia} 
-                  title={product.title} 
-                  stock={product.stock} 
+                <ImageGallery
+                  media={media}
+                  activeMedia={activeMedia}
+                  setActiveMedia={setActiveMedia}
+                  title={product.title}
+                  stock={product.stock}
                 />
               )}
-              {/* Media Progress Indicator */}
-              <div className="pointer-events-none sticky bottom-10 left-0 right-0 z-20 flex justify-center lg:hidden">
-                <div className="flex gap-1.5 px-4 py-2 bg-black/80 backdrop-blur-md rounded-full ring-1 ring-white/20">
-                  {media.map((_, idx) => (
-                    <div 
-                      key={idx} 
-                      className={`h-1 rounded-full transition-all duration-500 ${
-                        media.findIndex(m => m.url === activeMedia?.url) === idx 
-                          ? 'w-6 bg-primary' 
-                          : 'w-1.5 bg-white/30'
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
             </div>
-            
-            {/* Extended Visual Narrative (Visible on scroll) */}
+
             <div className="hidden lg:grid grid-cols-2 gap-8 pt-20">
-               {media.slice(1, 3).map((m, i) => (
-                 <div key={i} className="relative aspect-[3/4] rounded-[2.5rem] overflow-hidden group shadow-lg hover:shadow-2xl transition-all duration-700">
-                    <Image src={m.url} fill className="object-cover transition-transform duration-1000 group-hover:scale-110" alt="Detail" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                 </div>
-               ))}
+              {media.slice(1, 3).map((m, i) => (
+                <div key={i} className="relative aspect-[3/4] rounded-[2.5rem] overflow-hidden group shadow-lg hover:shadow-2xl transition-all duration-700">
+                  <Image src={m.url} fill className="object-cover transition-transform duration-1000 group-hover:scale-110" alt="Detail" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                </div>
+              ))}
             </div>
           </div>
 
@@ -540,187 +684,335 @@ export default function ProductClient() {
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-[9px] font-black uppercase tracking-widest text-green-600">Active Viewing</span>
                   </div>
+                  {product.views > 100 && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 rounded-full border border-orange-100 animate-bounce">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-orange-600">Trending 🔥</span>
+                    </div>
+                  )}
                 </div>
-                <h1 className="text-5xl lg:text-7xl font-black italic uppercase tracking-tighter leading-[0.85] text-balance">
+                <h1 className="text-3xl sm:text-5xl lg:text-7xl font-black italic uppercase tracking-tighter leading-[0.9] break-words text-balance">
                   {product.title}
                 </h1>
-                <div className="flex items-baseline gap-4">
-                  <span className="text-6xl font-black italic tracking-tighter text-primary">₹{product.price?.toLocaleString()}</span>
-                  <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Institutional Grade Assets</span>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-baseline flex-wrap gap-4">
+                    <span className="text-4xl sm:text-5xl lg:text-6xl font-black italic tracking-tighter text-black">₹{product.price?.toLocaleString()}</span>
+                    <span className="text-lg sm:text-xl lg:text-2xl text-gray-300 line-through font-bold tracking-tighter">₹{(product.price * 1.6).toLocaleString()}</span>
+                    <span className="bg-primary text-black px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest animate-pulse">40% OFF PROTOCOL</span>
+                  </div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Institutional Grade Assets | Value Anchored Drop</p>
                 </div>
+
+                {/* 👥 REAL-TIME SOCIAL PROOF */}
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-full">
+                    <span className="text-xs text-primary">⭐</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">4.9/5 Trust Grade (42 Reviews)</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100/50 border border-black/5 rounded-full">
+                    <span className="text-xs">⚡</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-800">12 SECURED IN LAST 24H</span>
+                  </div>
+                </div>
+
+                {/* ⏳ PSYCHOLOGICAL URGENCY HUB */}
+                <div className="p-6 bg-red-600 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group/urgency">
+                  <div className="absolute top-0 right-0 p-6 opacity-10 text-6xl pointer-events-none group-hover/urgency:scale-125 transition-transform duration-1000">⏳</div>
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-100 mb-1">Institutional Session Ending</p>
+                      <p className="text-lg font-black italic tracking-tighter uppercase">Flash Drop Availability</p>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/20 text-right">
+                      <p className="text-2xl font-black tabular-nums tracking-tighter">{timeLeft}</p>
+                      <p className="text-[7px] font-black uppercase tracking-widest text-red-100">Protocol Close</p>
+                    </div>
+                  </div>
+                </div>
+
+                {product.stock <= 5 && product.stock > 0 && (
+                  <div className="p-4 bg-orange-50 border-2 border-orange-100 rounded-2xl flex items-center gap-4 animate-in fade-in zoom-in-95">
+                    <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white text-xl animate-bounce">🔥</div>
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-widest text-orange-600">Critical Supply Shortage</p>
+                      <p className="text-[9px] font-bold text-orange-500 uppercase tracking-widest">Only {product.stock} pieces remaining in archival vault.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Viewer Analytics Context */}
-              <div className="p-5 bg-black rounded-[2rem] text-white flex items-center justify-between border-2 border-primary/20 shadow-2xl">
-                 <div>
-                   <p className="text-[9px] font-black uppercase tracking-[0.3em] text-primary mb-1">Stock Trajectory</p>
-                   <p className="text-sm font-bold italic tracking-tight">{product.stock > 10 ? 'Available for Deployment' : 'Critical Shortage Protocol Activel'}</p>
-                 </div>
-                 <div className="text-right">
-                    <p className="text-xl font-black italic tracking-tighter">{viewersCount}</p>
-                    <p className="text-[7px] font-black uppercase tracking-widest text-primary">Live Locks</p>
-                 </div>
+              <div className="p-5 bg-black rounded-[2.5rem] text-white flex items-center justify-between border-b-4 border-primary shadow-2xl group/analytics overflow-hidden relative">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover/analytics:scale-150 transition-transform duration-1000">📊</div>
+                <div className="relative z-10">
+                  <p className="text-[9px] font-black uppercase tracking-[0.3em] text-primary mb-1">Live Velocity Tracking</p>
+                  <p className="text-sm font-bold italic tracking-tight uppercase">{product.stock > 10 ? 'High Liquidity Drop' : 'Critical Asset Shortage'}</p>
+                </div>
+                <div className="text-right relative z-10">
+                  <p className="text-2xl font-black italic tracking-tighter text-white">{viewersCount}</p>
+                  <p className="text-[7px] font-black uppercase tracking-widest text-primary">Active Sessions</p>
+                </div>
               </div>
+            </div>
 
-              {/* Sizing Matrix */}
-              <div className="space-y-6 pt-8 border-t border-gray-100">
-                <div className="flex justify-between items-center px-1">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 flex items-center gap-2">
-                    Size Selection <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  </h3>
+            {/* Sizing Matrix */}
+            <div className="space-y-6 pt-8 border-t border-gray-100">
+              <div className="flex justify-between items-center px-1">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 flex items-center gap-2">
+                  Size Selection <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                </h3>
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowSoldOutSizes(v => !v)}
+                    className="text-[10px] font-black uppercase tracking-widest underline underline-offset-4 hover:text-primary transition-colors"
+                  >
+                    {showSoldOutSizes ? "Hide Sold Out" : "Show Sold Out"}
+                  </button>
                   <button onClick={() => setShowSizeGuide(true)} className="text-[10px] font-black uppercase tracking-widest underline underline-offset-4 hover:text-primary transition-colors">Dimension Grid</button>
                 </div>
-                
-                {/* Show available sizes from variants or fallback to hardcoded */}
-                {variants.length > 0 ? (
-                  <div className="grid grid-cols-5 gap-3">
-                    {variants.map(v => (
-                      <button 
-                        key={v.size} 
-                        onClick={() => setSelectedSize(v.size)} 
-                        className={`group relative h-16 rounded-2xl font-black transition-all duration-500 border-2 ${
-                          selectedSize === v.size 
-                            ? 'bg-black text-white border-black shadow-[0_20px_40px_rgba(0,0,0,0.15)] scale-105' 
-                            : v.stock > 0 
-                              ? 'bg-white border-gray-100 hover:border-black text-gray-400 hover:text-black'
-                              : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed line-through'
+              </div>
+
+              {visibleSizeOptions.length > 0 ? (
+                <div className="grid grid-cols-5 gap-3">
+                  {visibleSizeOptions.map(v => (
+                    <button
+                      key={v.size}
+                      onClick={() => {
+                        if (v.stock <= 0) {
+                          setUiToast(`Size ${v.size} is sold out`)
+                          return
+                        }
+                        setSelectedSize(v.size)
+                      }}
+                      className={`group relative h-16 rounded-2xl font-black transition-all duration-500 border-2 ${selectedSize === v.size
+                        ? 'bg-black text-white border-black shadow-[0_20px_40px_rgba(0,0,0,0.15)] scale-105'
+                        : v.stock > 0
+                          ? 'bg-white border-gray-100 hover:border-black text-gray-400 hover:text-black'
+                          : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed'
                         }`}
-                        disabled={v.stock <= 0}
-                      >
-                        <span className="relative z-10">{v.size}</span>
-                        {selectedSize === v.size && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full ring-4 ring-white" />
-                        )}
-                        {v.stock > 0 && v.stock <= 3 && (
-                          <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[7px] font-bold text-orange-500">LOW</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-5 gap-3">
-                    {["XS", "S", "M", "L", "XL"].map(s => (
-                      <button 
-                        key={s} 
-                        onClick={() => setSelectedSize(s)} 
-                        className={`group relative h-16 rounded-2xl font-black transition-all duration-500 border-2 ${
-                          selectedSize === s 
-                            ? 'bg-black text-white border-black shadow-[0_20px_40px_rgba(0,0,0,0.15)] scale-105' 
-                            : 'bg-white border-gray-100 hover:border-black text-gray-400 hover:text-black'
-                        }`}
-                      >
-                        <span className="relative z-10">{s}</span>
-                        {selectedSize === s && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full ring-4 ring-white" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-300 text-center italic">
-                  {variants.length > 0 ? `${variants.filter(v => v.stock > 0).length} sizes available` : 'Institutional Cut: Standard True Fit'}
-                </p>
-              </div>
-
-              {/* Execution Actions */}
-              <div className="space-y-4">
-                <button 
-                  onClick={buyNow} 
-                  disabled={!selectedSize} 
-                  className={`group w-full h-24 rounded-[2rem] font-black uppercase tracking-[0.4em] text-sm transition-all duration-700 relative overflow-hidden flex items-center justify-center ${
-                    selectedSize 
-                      ? 'bg-black text-white hover:bg-primary hover:text-black shadow-2xl' 
-                      : 'bg-gray-100 text-gray-300 cursor-not-allowed grayscale'
-                  }`}
-                >
-                  <span className="relative z-10 flex items-center gap-4 group-hover:scale-110 transition-transform">
-                    Initialize Purchase <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
-                  </span>
-                  <div className="absolute inset-0 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <button 
-                    onClick={addToCart} 
-                    className="h-20 rounded-2xl border-2 border-gray-100 font-black uppercase tracking-widest text-[10px] hover:border-black transition-all group"
-                  >
-                    Add to Bag
-                  </button>
-                  <button 
-                    onClick={addToWishlist} 
-                    className={`h-20 rounded-2xl border-2 transition-all flex items-center justify-center text-xl group ${
-                      inWishlist ? 'bg-red-500 border-red-500 text-white' : 'border-gray-100 hover:text-red-500'
-                    }`}
-                  >
-                    {inWishlist ? '❤️' : '♡'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Trust Protocol Badges */}
-              <div className="grid grid-cols-3 gap-6 py-10 border-y border-gray-100">
-                 {[
-                   { label: 'Blockchain ID', icon: '📝' },
-                   { label: 'Asset Verified', icon: '💎' },
-                   { label: 'Logistics Pro', icon: '📦' }
-                 ].map((t, i) => (
-                   <div key={i} className="flex flex-col items-center text-center gap-3">
-                     <span className="text-xl grayscale group-hover:grayscale-0 transition-smooth opacity-40">{t.icon}</span>
-                     <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-400">{t.label}</span>
-                   </div>
-                 ))}
-              </div>
-
-              <SellerCard profile={product.profiles} userId={product.user_id} />
-
-              <div className="space-y-8">
-                <div className="flex gap-10 border-b border-gray-100">
-                  {['description', 'specifications', 'shipping'].map(tab => (
-                    <button 
-                      key={tab} 
-                      onClick={() => setActiveTab(tab)} 
-                      className={`pb-4 text-[10px] font-black uppercase tracking-[0.3em] relative transition-colors ${
-                        activeTab === tab ? 'text-black' : 'text-gray-300 hover:text-black'
-                      }`}
                     >
-                      {tab}
-                      {activeTab === tab && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black animate-in fade-in slide-in-from-left-2" />
+                      <span className="relative z-10">{v.size}</span>
+                      {selectedSize === v.size && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full ring-4 ring-white" />
+                      )}
+                      {v.stock <= 0 && (
+                        <span className="absolute inset-0 flex items-center justify-center text-red-500 text-xl font-black">✕</span>
                       )}
                     </button>
                   ))}
                 </div>
-                <div className="min-h-[150px] animate-in fade-in duration-700">
-                  <p className="text-sm font-bold uppercase tracking-tight italic text-gray-700 leading-relaxed text-pretty">
-                    {activeTab === 'description' ? product.description : 
-                     activeTab === 'specifications' ? "Composition: Institutional-grade materials • Assembly: Premium Craftsmanship • Durability: High-Velocity Ready • Care: Professional Clean Protocol." :
-                     "Global Priority Delivery • 24H Despatch Protocol • Secured Transit Insurance Included."
-                    }
-                  </p>
+              ) : (
+                <div className="h-16 rounded-2xl border border-dashed border-gray-200 flex items-center justify-center">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">No sizes configured by seller</span>
                 </div>
+              )}
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-300 text-center italic">
+                {sizeOptions.length > 0 ? `${sizeOptions.filter(v => v.stock > 0).length} sizes available` : 'Waiting for seller size setup'}
+              </p>
+
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-2xl border border-gray-100 mt-4">
+                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">Unit Deployment</span>
+                <div className="flex items-center gap-6">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:border-black transition-colors"
+                  >
+                    <span className="text-xl font-bold">−</span>
+                  </button>
+                  <span className="text-lg font-black italic tracking-tighter w-4 text-center">{quantity}</span>
+                  <button
+                    onClick={() => setQuantity(quantity + 1)}
+                    className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:border-black transition-colors"
+                  >
+                    <span className="text-xl font-bold">+</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <button
+                onClick={buyNow}
+                disabled={!canPurchase}
+                className={`group w-full h-24 rounded-[2rem] font-black uppercase tracking-[0.4em] text-sm transition-all duration-700 relative overflow-hidden flex items-center justify-center ${canPurchase
+                  ? 'bg-black text-white hover:bg-primary hover:text-black shadow-2xl'
+                  : 'bg-gray-100 text-gray-300 cursor-not-allowed grayscale'
+                  }`}
+              >
+                <div className="absolute inset-0 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                <span className="relative z-10 flex items-center gap-4 group-hover:scale-110 transition-transform">
+                  ⚡ EXECUTE FLASH BUY <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                </span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={addToCart}
+                  disabled={!canPurchase}
+                  className={`h-22 rounded-2xl border-2 font-black uppercase tracking-widest text-[10px] transition-all group ${canPurchase
+                    ? 'border-black hover:bg-black hover:text-white'
+                    : 'border-gray-100 text-gray-300 cursor-not-allowed'
+                    }`}
+                >
+                  ARCHIVE TO BAG
+                </button>
+                <button
+                  onClick={addToWishlist}
+                  className={`h-22 rounded-2xl border-2 transition-all flex items-center justify-center text-xl group ${inWishlist ? 'bg-red-500 border-red-500 text-white' : 'border-gray-100 hover:text-red-500'
+                    }`}
+                >
+                  {inWishlist ? '❤️' : '♡'}
+                </button>
+              </div>
+            </div>
+
+            {/* 🏷️ STICKY MOBILE CTA BAR (INSTITUTIONAL STANDARD) */}
+            <div className={`lg:hidden fixed bottom-0 left-0 right-0 z-[100] p-4 bg-white/80 backdrop-blur-2xl border-t border-gray-100 transition-transform duration-500 ${canPurchase ? 'translate-y-0' : 'translate-y-full'}`}>
+              <div className="flex gap-4 max-w-lg mx-auto">
+                <div className="flex-1">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Selected: {selectedSize}</p>
+                  <p className="text-xl font-black italic tracking-tighter">₹{product.price?.toLocaleString()}</p>
+                </div>
+                <button
+                  onClick={buyNow}
+                  className="flex-[2] h-14 bg-black text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-xl active:scale-95 transition-all"
+                >
+                  ⚡ SECURE NOW
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-6 py-10 border-y border-gray-100">
+              {[
+                { label: '100% Authentic', icon: '🛡️', color: 'text-blue-500' },
+                { label: 'Secure Escrow', icon: '🔐', color: 'text-green-500' },
+                { label: 'Insured Transit', icon: '✈️', color: 'text-primary' }
+              ].map((t, i) => (
+                <div key={i} className="flex flex-col items-center text-center gap-3 group/badge">
+                  <span className={`text-2xl transition-transform duration-500 group-hover/badge:scale-125 ${t.color}`}>{t.icon}</span>
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-500">{t.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* 🛡️ INSTITUTIONAL PROTECTION PROTOCOL */}
+            <div className="p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100 space-y-6 relative overflow-hidden group/trust">
+              <div className="absolute top-0 right-0 p-8 opacity-5 text-8xl pointer-events-none group-hover/trust:scale-110 transition-transform duration-1000">🛡️</div>
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white text-lg">⚖️</div>
+                <div>
+                  <h4 className="text-[11px] font-black uppercase tracking-[0.2em]">Institutional Protection</h4>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Global Trade Standard Alpha-7</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {[
+                  { title: '7-Day Return Logic', desc: 'Full refund if the asset does not match description.', icon: '🔄' },
+                  { title: 'HSTNLX Escrow Tier', desc: 'Secure vault holding until delivery confirmation.', icon: '🏦' },
+                  { title: 'QA Forensic Check', desc: 'Institutional grade verification for every drop.', icon: '🔍' }
+                ].map((p, i) => (
+                  <div key={i} className="flex gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:border-black transition-all group/item">
+                    <span className="text-xl group-hover/item:scale-125 transition-transform">{p.icon}</span>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest">{p.title}</p>
+                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-1 leading-relaxed">{p.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <SellerCard profile={product.profiles} userId={product.user_id} />
+
+            <div className="space-y-8">
+              <div className="flex gap-10 border-b border-gray-100">
+                {['description', 'specifications', 'shipping'].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`pb-4 text-[10px] font-black uppercase tracking-[0.3em] relative transition-colors ${activeTab === tab ? 'text-black' : 'text-gray-300 hover:text-black'
+                      }`}
+                  >
+                    {tab}
+                    {activeTab === tab && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black animate-in fade-in slide-in-from-left-2" />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="min-h-[150px] animate-in fade-in duration-700">
+                {activeTab === 'description' && (
+                  <p className="text-sm font-bold uppercase tracking-tight italic text-gray-700 leading-relaxed text-pretty">
+                    {product.description}
+                  </p>
+                )}
+
+                {activeTab === 'specifications' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { label: 'Material', value: productAttributes.material || 'Institutional-grade blend' },
+                      { label: 'Pattern', value: productAttributes.pattern || 'Standard finish' },
+                      { label: 'Sleeve', value: productAttributes.sleeveType || 'Standard sleeve profile' },
+                      { label: 'Neckline', value: productAttributes.neckline || 'Category standard' },
+                      { label: 'Occasion', value: productAttributes.occasion || 'Daily + elevated wear' },
+                      { label: 'Wash Care', value: productAttributes.washCare || 'Gentle machine wash' },
+                    ].map((item) => (
+                      <div key={item.label} className="p-3 rounded-xl border border-gray-100 bg-gray-50">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">{item.label}</p>
+                        <p className="text-xs font-bold uppercase tracking-wide text-gray-700">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === 'shipping' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { label: 'Dispatch', value: shippingInfo.dispatchHours ? `${shippingInfo.dispatchHours}h protocol` : '24h protocol' },
+                      { label: 'Return Window', value: shippingInfo.returnWindowDays ? `${shippingInfo.returnWindowDays} days` : '7 days' },
+                      { label: 'Package Weight', value: shippingInfo.packageWeight ? `${shippingInfo.packageWeight} kg` : 'Standard' },
+                      { label: 'COD', value: typeof shippingInfo.codEnabled === 'boolean' ? (shippingInfo.codEnabled ? 'Available' : 'Unavailable') : 'Available' },
+                      { label: 'Transit', value: 'Secured Transit Insurance Included' },
+                    ].map((item) => (
+                      <div key={item.label} className="p-3 rounded-xl border border-gray-100 bg-gray-50">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">{item.label}</p>
+                        <p className="text-xs font-bold uppercase tracking-wide text-gray-700">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <PhotoReviews productId={productId} />
-        
-        {relatedProducts.length > 0 && (
-          <div className="mt-40 pt-40 border-t border-gray-100">
-            <div className="flex justify-between items-end mb-16">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Discover More</span>
-                <h2 className="text-5xl font-black italic uppercase tracking-tighter mt-4">Linked Archives</h2>
-              </div>
-              <Link href="/" className="text-xs font-black uppercase tracking-[0.3em] border-b-2 border-black pb-2 hover:text-primary hover:border-primary transition-all">Explore Entire Fleet →</Link>
+      <PhotoReviews productId={productId} />
+
+      {relatedProducts.length > 0 && (
+        <div className="mt-20 md:mt-40 pt-16 md:pt-40 border-t border-gray-100 px-4 sm:px-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-6 mb-10 md:mb-16">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Discover More</span>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black italic uppercase tracking-tighter mt-3 md:mt-4">Linked Archives</h2>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-12">
+            <Link href="/" className="text-xs font-black uppercase tracking-[0.3em] border-b-2 border-black pb-2 hover:text-primary hover:border-primary transition-all">Explore Entire Fleet →</Link>
+          </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8 lg:gap-12">
               {relatedProducts.map(p => (<ProductCard key={p.id} product={p} />))}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
       <SizeGuide isOpen={showSizeGuide} onClose={() => setShowSizeGuide(false)} />
+      <div className={`fixed left-1/2 -translate-x-1/2 bottom-24 z-[160] transition-all duration-300 ${uiToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+        <div className="px-5 py-2.5 rounded-full bg-black text-white text-[11px] font-black uppercase tracking-wider shadow-2xl border border-white/10">
+          {uiToast}
+        </div>
+      </div>
     </div>
   )
 }

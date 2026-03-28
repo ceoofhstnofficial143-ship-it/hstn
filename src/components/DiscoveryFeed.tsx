@@ -25,7 +25,7 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
         const end = start + pageSize - 1
 
         try {
-            let query = supabase
+            let query = (supabase as any)
                 .from("products")
                 .select(`
                     *,
@@ -42,6 +42,7 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
             }
 
             const { data, error } = await query
+                .order("is_boosted", { ascending: false })
                 .order("created_at", { ascending: false })
                 .range(start, end)
 
@@ -54,7 +55,7 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
             } else {
                 // If we found nothing with filters, try loading general products
                 if (userStyles && userStyles.length > 0) {
-                    const { data: generalData } = await supabase
+                    const { data: generalData } = await (supabase as any)
                         .from("products")
                         .select(`*, profiles!products_user_id_fkey(username)`)
                         .eq("admin_status", "approved")
@@ -124,13 +125,14 @@ export default function DiscoveryFeed({ userId, userStyles }: DiscoveryFeedProps
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-8 px-4 lg:px-0">
+            <div className="grid grid-cols-1 gap-12 px-4 max-w-2xl mx-auto">
                 {products.map((product, index) => (
-                    <ProductCard
-                        key={`${product.id}-${index}`}
-                        product={product}
-                        fullScreen={true}
-                    />
+                    <div key={`${product.id}-${index}`} className="h-[70vh] w-full">
+                        <ProductCard
+                            product={product}
+                            fullScreen={true}
+                        />
+                    </div>
                 ))}
             </div>
 

@@ -25,7 +25,7 @@ export default function BuyerConfirmation({ request, user, onConfirmed }: BuyerC
         setIsConfirming(true)
         
         try {
-            const { error } = await supabase.rpc('confirm_request_completion_with_trust', {
+            const { error } = await (supabase as any).rpc('confirm_request_completion_with_trust', {
                 p_request_id: request.id,
                 p_buyer_id: user.id
             })

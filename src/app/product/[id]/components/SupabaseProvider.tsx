@@ -5,8 +5,8 @@ import { supabase } from '@/lib/supabase'
 
 export default function SupabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    // Expose supabase globally for debugging
-    if (typeof window !== 'undefined') {
+    // Expose supabase globally only in development debugging sessions
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === "development") {
       (window as any).supabase = supabase;
       console.log('🔧 Supabase client exposed globally for debugging');
       console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? '✅ Set' : '❌ Missing');

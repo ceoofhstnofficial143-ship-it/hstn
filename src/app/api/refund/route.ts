@@ -1,14 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
+import { createSecureAPIMiddleware } from "@/lib/api-security";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function POST(req: Request) {
+async function refundHandler(req: NextRequest, { validatedData }: any) {
   // Move Razorpay import inside to avoid build-time static analysis
   const Razorpay = (await import("razorpay")).default;
   try {
-    const { payment_id, amount, order_id } = await req.json();
+    const { payment_id, amount, order_id } = validatedData;
 
     const mode = process.env.NEXT_PUBLIC_PAYMENT_MODE || "mock";
     const supabaseAdmin = createClient(
@@ -23,14 +24,14 @@ export async function POST(req: Request) {
       const refund_id = "mock_refund_" + Date.now();
       
       // Update Payment Record
-      await supabaseAdmin.from("payments").update({
+      await (supabaseAdmin as any).from("payments").update({
         refund_id,
         refund_status: 'processed',
         refund_amount: amount
       }).eq("payment_id", payment_id);
 
       // Update Order Status (THE REVERSAL)
-      await supabaseAdmin.from("orders").update({
+      await (supabaseAdmin as any).from("orders").update({
         status: 'refunded',
         payment_status: 'refunded'
       }).eq("id", order_id);
@@ -56,19 +57,19 @@ export async function POST(req: Request) {
     });
 
     // Persist Reversal in HSTNLX Ledger
-    await supabaseAdmin.from("payments").update({
+    await (supabaseAdmin as any).from("payments").update({
         refund_id: refund.id,
         refund_status: 'processed',
         refund_amount: amount
     }).eq("payment_id", payment_id);
 
-    await supabaseAdmin.from("orders").update({
+    await (supabaseAdmin as any).from("orders").update({
         status: 'refunded',
         payment_status: 'refunded'
     }).eq("id", order_id);
 
     // 📝 3. INSTITUTIONAL AUDIT TRAIL
-    await supabaseAdmin.from("admin_actions").insert({
+    await (supabaseAdmin as any).from("admin_actions").insert({
         action: 'refund_issued',
         target_id: payment_id,
         metadata: { amount, order_id, refund_id: refund.id }
@@ -81,3 +82,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Reversal Protocol Failure: " + err.message }, { status: 500 });
   }
 }
+
+// 🔐 SECURE ENDPOINT WRAPPER
+export const POST = createSecureAPIMiddleware({
+  requireAuth: true,
+  requiredRole: 'admin',
+  validateInput: {
+    payment_id: { required: true, type: 'string' },
+    amount: { required: true, type: 'number' },
+    order_id: { required: true, type: 'string' }
+  }
+})(refundHandler as any);

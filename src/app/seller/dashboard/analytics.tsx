@@ -41,22 +41,22 @@ export default function SellerAnalyticsPanel({ userId }: { userId: string }) {
         setLoading(true)
         
         // Get seller analytics
-        const { data: sellerData } = await supabase
+        const { data: sellerData } = await (supabase as any)
             .from('seller_analytics')
             .select('*')
             .eq('seller_id', userId)
             .single()
 
         // Get product analytics for seller's products
-        const { data: productsData } = await supabase
+        const { data: productsData } = await (supabase as any)
             .from('products')
             .select('id')
             .eq('user_id', userId)
 
         if (productsData && productsData.length > 0) {
-            const productIds = productsData.map(p => p.id)
+            const productIds = productsData.map((p: any) => p.id)
             
-            const { data: productAnalyticsData } = await supabase
+            const { data: productAnalyticsData } = await (supabase as any)
                 .from('product_analytics')
                 .select('*')
                 .in('product_id', productIds)

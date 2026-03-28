@@ -17,7 +17,7 @@ export const trackEvent = async (eventType: string, metadata: Record<string, any
     try {
         const { data: { user } } = await supabase.auth.getUser()
 
-        const { error } = await supabase.from('marketplace_events').insert({
+        const { error } = await (supabase as any).from('marketplace_events').insert({
             event_type: eventType,
             user_id: user?.id || null,
             metadata: metadata,
@@ -36,7 +36,7 @@ export const trackEvent = async (eventType: string, metadata: Record<string, any
 export class Analytics {
     static async logProductView(userId: string, productId: string, sellerId: string) {
         try {
-            await supabase.rpc('log_product_view', {
+            await (supabase as any).rpc('log_product_view', {
                 p_user_id: userId,
                 p_product_id: productId,
                 p_seller_id: sellerId
@@ -48,7 +48,7 @@ export class Analytics {
 
     static async logVideoPlay(userId: string, productId: string, sellerId: string) {
         try {
-            await supabase.rpc('log_video_play', {
+            await (supabase as any).rpc('log_video_play', {
                 p_user_id: userId,
                 p_product_id: productId,
                 p_seller_id: sellerId
@@ -60,7 +60,7 @@ export class Analytics {
 
     static async logWishlistAdd(userId: string, productId: string, sellerId: string) {
         try {
-            await supabase.rpc('log_wishlist_add', {
+            await (supabase as any).rpc('log_wishlist_add', {
                 p_user_id: userId,
                 p_product_id: productId,
                 p_seller_id: sellerId
@@ -72,7 +72,7 @@ export class Analytics {
 
     static async logAddToCart(userId: string, productId: string, sellerId: string) {
         try {
-            await supabase.rpc('log_add_to_cart', {
+            await (supabase as any).rpc('log_add_to_cart', {
                 p_user_id: userId,
                 p_product_id: productId,
                 p_seller_id: sellerId
@@ -84,7 +84,7 @@ export class Analytics {
 
     static async logCheckoutStart(userId: string) {
         try {
-            await supabase.rpc('log_checkout_start', {
+            await (supabase as any).rpc('log_checkout_start', {
                 p_user_id: userId
             })
         } catch (error) {
@@ -94,7 +94,7 @@ export class Analytics {
 
     static async logCheckoutComplete(userId: string, orderId: string) {
         try {
-            await supabase.rpc('log_checkout_complete', {
+            await (supabase as any).rpc('log_checkout_complete', {
                 p_user_id: userId,
                 p_order_id: orderId
             })
@@ -105,7 +105,7 @@ export class Analytics {
 
     static async logUploadCreated(sellerId: string, productId: string) {
         try {
-            await supabase.rpc('log_upload_created', {
+            await (supabase as any).rpc('log_upload_created', {
                 p_seller_id: sellerId,
                 p_product_id: productId
             })
@@ -116,7 +116,7 @@ export class Analytics {
 
     static async logUploadApproved(sellerId: string, productId: string) {
         try {
-            await supabase.rpc('log_upload_approved', {
+            await (supabase as any).rpc('log_upload_approved', {
                 p_seller_id: sellerId,
                 p_product_id: productId
             })
@@ -127,7 +127,7 @@ export class Analytics {
 
     static async logQuestCompleted(sellerId: string, questType: string) {
         try {
-            await supabase.rpc('log_quest_completed', {
+            await (supabase as any).rpc('log_quest_completed', {
                 p_seller_id: sellerId,
                 p_quest_type: questType
             })
@@ -138,7 +138,7 @@ export class Analytics {
 
     static async logFeedView(userId: string) {
         try {
-            await supabase.rpc('log_marketplace_event', {
+            await (supabase as any).rpc('log_marketplace_event', {
                 p_event_type: 'feed_view',
                 p_user_id: userId
             })
@@ -150,7 +150,7 @@ export class Analytics {
     // Refresh analytics data
     static async refreshAnalytics() {
         try {
-            await supabase.rpc('refresh_all_analytics')
+            await (supabase as any).rpc('refresh_all_analytics')
         } catch (error) {
             console.error('Failed to refresh analytics:', error)
         }
@@ -159,7 +159,7 @@ export class Analytics {
     // Get product heat score
     static async getProductHeatScore(productId: string): Promise<number> {
         try {
-            const { data } = await supabase.rpc('calculate_product_heat_score', {
+            const { data } = await (supabase as any).rpc('calculate_product_heat_score', {
                 p_product_id: productId
             })
             return data || 0

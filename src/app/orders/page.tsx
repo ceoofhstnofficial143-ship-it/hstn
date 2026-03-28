@@ -20,7 +20,7 @@ export default function OrdersPage() {
             setUser(user)
 
             // Fetch orders with their items and nested product data
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from("orders")
                 .select(`
                     *,
@@ -37,7 +37,7 @@ export default function OrdersPage() {
             }
 
             // Fetch purchase requests
-            const { data: requestData } = await supabase.rpc("get_buyer_purchase_requests", {
+            const { data: requestData } = await (supabase as any).rpc("get_buyer_purchase_requests", {
                 p_buyer_id: user.id
             } as any)
 

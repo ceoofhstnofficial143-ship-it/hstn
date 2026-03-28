@@ -17,15 +17,15 @@ export default function ReconciliationDashboard() {
         setLoading(true)
         
         // 1. Fetch from the View (Unified Truth)
-        const { data: vw } = await supabase.from("vw_reconciliation_audit").select("*")
+        const { data: vw } = await (supabase as any).from("vw_reconciliation_audit").select("*")
         
         // 2. Aggregate Stats
-        const { data: payments } = await supabase.from("payments").select("amount").eq("status", "captured")
-        const { count: orders } = await supabase.from("orders").select("*", { count: 'exact', head: true })
-        const { data: payouts } = await supabase.from("seller_payouts").select("amount").in("status", ["pending", "eligible"])
+        const { data: payments } = await (supabase as any).from("payments").select("amount").eq("status", "captured")
+        const { count: orders } = await (supabase as any).from("orders").select("*", { count: 'exact', head: true })
+        const { data: payouts } = await (supabase as any).from("seller_payouts").select("amount").in("status", ["pending", "eligible"])
 
-        const totalCaptured = payments?.reduce((acc, p) => acc + (p.amount || 0), 0) || 0
-        const totalLiability = payouts?.reduce((acc, p) => acc + (p.amount || 0), 0) || 0
+        const totalCaptured = payments?.reduce((acc: number, p: any) => acc + (p.amount || 0), 0) || 0
+        const totalLiability = payouts?.reduce((acc: number, p: any) => acc + (p.amount || 0), 0) || 0
 
         if (vw) setAudit(vw)
         setStats({ captured: totalCaptured, orders: orders || 0, liability: totalLiability })
