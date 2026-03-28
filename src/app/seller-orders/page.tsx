@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 
+// Prevent prerendering - page uses client-side auth
+export const dynamic = 'force-dynamic'
+
 export default function SellerOrdersPage() {
   const [orders, setOrders] = useState<any[]>([])
 
