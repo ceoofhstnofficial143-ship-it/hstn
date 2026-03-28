@@ -27,92 +27,78 @@ export default function DiscoveryFeed() {
   const [showHeart, setShowHeart] = useState(false)
   
   const containerRef = useRef<HTMLDivElement>(null)
-  const observerRef = useRef<IntersectionObserver | null>(null)
   const pageRef = useRef(0)
   const hasMoreRef = useRef(true)
+  const isFetchingRef = useRef(false)
 
   const BATCH_SIZE = 5
 
   const fetchProducts = useCallback(async (page: number, append = false) => {
+    if (isFetchingRef.current) return
+    isFetchingRef.current = true
+    
     if (append) {
       setLoadingMore(true)
     } else {
       setLoading(true)
     }
 
-    const { data, error } = await supabase
-      .from("products")
-      .select("id, title, price, discount_price, image_url, video_url, stock, rating, views_count, cart_count")
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1)
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, title, price, discount_price, image_url, video_url, stock, rating, views_count, cart_count")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1)
 
-    if (error) {
-      console.error("Error fetching products:", error)
+      if (error) {
+        console.error("Error fetching products:", error)
+      } else {
+        if (!data || data.length < BATCH_SIZE) {
+          hasMoreRef.current = false
+        }
+
+        if (append) {
+          setProducts(prev => [...prev, ...(data || [])])
+        } else {
+          setProducts(data || [])
+        }
+      }
+    } catch (err) {
+      console.error("Fetch error:", err)
+    } finally {
       setLoading(false)
       setLoadingMore(false)
-      return
+      isFetchingRef.current = false
     }
-
-    if (!data || data.length < BATCH_SIZE) {
-      hasMoreRef.current = false
-    }
-
-    if (append) {
-      setProducts(prev => [...prev, ...(data || [])])
-    } else {
-      setProducts(data || [])
-    }
-
-    setLoading(false)
-    setLoadingMore(false)
   }, [])
 
   useEffect(() => {
     fetchProducts(0)
   }, [fetchProducts])
 
-  // Intersection Observer for active card detection
-  useEffect(() => {
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const index = parseInt(entry.target.getAttribute("data-index") || "0")
-            setActiveIndex(index)
-            
-            // Load more when nearing bottom
-            if (index >= products.length - 2 && hasMoreRef.current && !loadingMore) {
-              pageRef.current += 1
-              fetchProducts(pageRef.current, true)
-            }
-          }
-        })
-      },
-      { threshold: 0.6 }
-    )
-
-    return () => {
-      observerRef.current?.disconnect()
-    }
-  }, [products.length, loadingMore, fetchProducts])
-
-  // Observe all cards
-  useEffect(() => {
+  // Handle scroll for active index and infinite loading
+  const handleScroll = useCallback(() => {
     const container = containerRef.current
     if (!container) return
 
-    const cards = container.querySelectorAll("[data-product-card]")
-    cards.forEach((card) => {
-      observerRef.current?.observe(card)
-    })
-
-    return () => {
-      cards.forEach((card) => {
-        observerRef.current?.unobserve(card)
-      })
+    const scrollTop = container.scrollTop
+    const viewportHeight = container.clientHeight
+    const newIndex = Math.round(scrollTop / viewportHeight)
+    
+    if (newIndex !== activeIndex) {
+      setActiveIndex(newIndex)
     }
-  }, [products])
+
+    // Load more when nearing bottom
+    const scrollHeight = container.scrollHeight
+    const scrollBottom = scrollTop + viewportHeight
+    
+    if (scrollBottom >= scrollHeight - viewportHeight * 2 && hasMoreRef.current && !loadingMore) {
+      pageRef.current += 1
+      fetchProducts(pageRef.current, true)
+    }
+  }, [activeIndex, loadingMore, fetchProducts])
 
   const handleDoubleTap = (productId: string) => {
     setLikedProducts(prev => {
@@ -125,12 +111,12 @@ export default function DiscoveryFeed() {
       return newSet
     })
     setShowHeart(true)
-    setTimeout(() => setShowHeart(false), 500)
+    setTimeout(() => setShowHeart(false), 600)
   }
 
   if (loading) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center">
+      <div className="fixed inset-0 bg-black flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
       </div>
     )
@@ -138,7 +124,7 @@ export default function DiscoveryFeed() {
 
   if (products.length === 0) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center text-white">
+      <div className="fixed inset-0 bg-black flex items-center justify-center text-white">
         <p className="text-lg">No products found</p>
       </div>
     )
@@ -147,25 +133,32 @@ export default function DiscoveryFeed() {
   return (
     <div 
       ref={containerRef}
-      className="h-screen overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
-      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      onScroll={handleScroll}
+      className="fixed inset-0 overflow-y-scroll snap-y snap-mandatory bg-black"
+      style={{
+        scrollSnapType: 'y mandatory',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain'
+      }}
     >
       {products.map((product, index) => (
         <div
           key={product.id}
           data-index={index}
-          data-product-card
-          className="h-screen snap-start relative"
+          className="w-full h-screen snap-start snap-always relative flex-shrink-0"
+          style={{ scrollSnapAlign: 'start' }}
         >
           <ProductCard
             product={product}
             isActive={index === activeIndex}
             onDoubleTap={() => handleDoubleTap(product.id)}
             showHeart={showHeart && index === activeIndex}
+            isLiked={likedProducts.has(product.id)}
           />
           <ActionBar
             productId={product.id}
             title={product.title}
+            isLiked={likedProducts.has(product.id)}
             onLike={() => handleDoubleTap(product.id)}
           />
         </div>
@@ -173,8 +166,8 @@ export default function DiscoveryFeed() {
 
       {/* Loading More Spinner */}
       {loadingMore && (
-        <div className="h-screen flex items-center justify-center bg-black">
-          <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+        <div className="w-full h-screen flex items-center justify-center bg-black snap-start">
+          <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin" />
         </div>
       )}
     </div>

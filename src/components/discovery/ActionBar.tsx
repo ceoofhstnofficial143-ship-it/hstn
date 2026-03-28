@@ -7,13 +7,18 @@ interface ActionBarProps {
   productId: string
   title: string
   onLike?: () => void
+  isLiked?: boolean
 }
 
-export default function ActionBar({ productId, title, onLike }: ActionBarProps) {
-  const [liked, setLiked] = useState(false)
+export default function ActionBar({ productId, title, onLike, isLiked }: ActionBarProps) {
+  const [liked, setLiked] = useState(isLiked || false)
   const [inCart, setInCart] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showToast, setShowToast] = useState("")
+
+  useEffect(() => {
+    setLiked(isLiked || false)
+  }, [isLiked])
 
   useEffect(() => {
     checkCartStatus()
@@ -59,8 +64,8 @@ export default function ActionBar({ productId, title, onLike }: ActionBarProps) 
         .single() as { data: { quantity: number } | null }
 
       if (existing) {
-        await supabase
-          .from("cart")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase.from("cart") as any)
           .update({ quantity: existing.quantity + 1 })
           .eq("buyer_id", user.id)
           .eq("product_id", productId)

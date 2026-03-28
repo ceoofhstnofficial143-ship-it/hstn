@@ -19,9 +19,10 @@ interface ProductCardProps {
   isActive: boolean
   onDoubleTap: () => void
   showHeart: boolean
+  isLiked?: boolean
 }
 
-export default function ProductCard({ product, isActive, onDoubleTap, showHeart }: ProductCardProps) {
+export default function ProductCard({ product, isActive, onDoubleTap, showHeart, isLiked }: ProductCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [lastTap, setLastTap] = useState(0)
   const [mediaError, setMediaError] = useState(false)
