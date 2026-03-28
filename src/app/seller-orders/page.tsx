@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
 
 // Prevent prerendering - page uses client-side auth
 export const dynamic = 'force-dynamic'
@@ -11,6 +10,9 @@ export default function SellerOrdersPage() {
 
   useEffect(() => {
     const fetchOrders = async () => {
+      // Dynamic import to avoid build-time Supabase initialization
+      const { supabase } = await import("@/lib/supabaseClient")
+      
       const { data: user } = await supabase.auth.getUser()
       if (!user?.user) return
 
@@ -32,6 +34,9 @@ export default function SellerOrdersPage() {
   }, [])
 
   const updateStatus = async (orderId: string, newStatus: string) => {
+    // Dynamic import for update function
+    const { supabase } = await import("@/lib/supabaseClient")
+
     const { error } = await supabase
       .from("orders")
       .update({ status: newStatus })
