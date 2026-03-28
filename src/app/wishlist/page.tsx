@@ -30,7 +30,10 @@ export default function WishlistPage() {
 
     const fetchData = async () => {
         const { data: { session } } = await supabase.auth.getSession()
+        console.log("Wishlist fetch - Session:", session?.user?.id)
+        
         if (!session) {
+            console.log("No session, setting loading false")
             setLoading(false)
             return
         }
@@ -47,13 +50,16 @@ export default function WishlistPage() {
             `)
             .eq("user_id", session.user.id)
 
-        if (wishlistErr || !merged) {
+        console.log("Wishlist query result:", { merged, error: wishlistErr })
+
+        if (wishlistErr) {
+            console.error("Wishlist error:", wishlistErr)
             setLoading(false)
             setItems([])
             return
         }
 
-        setItems(merged)
+        setItems(merged || [])
 
         // Fetch collections separately
         const { data: collectionsRes } = await (supabase as any)

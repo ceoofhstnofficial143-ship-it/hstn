@@ -77,11 +77,14 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
 
     if (isWishlisted) {
+      console.log("Removing from wishlist:", product.id)
       const { error } = await supabase
         .from("wishlist")
         .delete()
         .eq("user_id", user.id)
         .eq("product_id", product.id)
+      
+      console.log("Remove result:", { error })
       
       if (error) {
         setShowToast("Failed to remove")
@@ -91,9 +94,12 @@ export default function ProductCard({ product }: ProductCardProps) {
         window.dispatchEvent(new Event("hstnlx-wishlist-updated"))
       }
     } else {
+      console.log("Adding to wishlist:", { user_id: user.id, product_id: product.id })
       const { error } = await supabase
         .from("wishlist")
         .insert({ user_id: user.id, product_id: product.id } as any)
+      
+      console.log("Insert result:", { error })
       
       if (error) {
         setShowToast("Failed to add")
