@@ -6,7 +6,7 @@ import Link from "next/link"
 import Image from "next/image"
 import OutfitBundleV2 from "@/components/OutfitBundleV2"
 import FollowButton from "@/components/FollowButton"
-import ProductCard from "@/components/ProductCard"
+import ProductCard from "@/components/product/ProductCard"
 import { supabase } from "@/lib/supabase"
 
 // --- Sub-components (Copied from original page) ---
@@ -520,11 +520,30 @@ export default function ProductClient() {
 
   const addToWishlist = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return alert("Sign in to save drops.")
+    if (!user) {
+      setUiToast("Please login to save")
+      setTimeout(() => router.push("/login"), 1500)
+      return
+    }
+    
     if (inWishlist) {
-      await (supabase as any).from("wishlist").delete().eq("user_id", user.id).eq("product_id", productId); setInWishlist(false)
+      const { error } = await supabase
+        .from("wishlist")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("product_id", productId)
+      if (!error) {
+        setInWishlist(false)
+        setUiToast("Removed from wishlist")
+      }
     } else {
-      await (supabase as any).from("wishlist").insert({ user_id: user.id, product_id: productId }); setInWishlist(true)
+      const { error } = await supabase
+        .from("wishlist")
+        .insert({ user_id: user.id, product_id: productId } as any)
+      if (!error) {
+        setInWishlist(true)
+        setUiToast("Added to wishlist ❤️")
+      }
     }
   }
 
@@ -562,41 +581,75 @@ export default function ProductClient() {
   const selectedSizeStock = selectedSize
     ? sizeOptions.find(v => v.size === selectedSize)?.stock ?? 0
     : 0
-  const canPurchase = !!selectedSize && selectedSizeStock > 0
+  
+  // If no variants, use product stock directly
+  const hasVariants = variants.length > 0
+  const productStock = product?.stock || 0
+  const canPurchase = hasVariants 
+    ? !!selectedSize && selectedSizeStock > 0
+    : productStock > 0
 
-  const addToCart = () => {
-    if (!selectedSize) return alert("Select protocol size.")
-    if (selectedSizeStock <= 0) return alert("Selected size is out of stock.")
-    const cart = JSON.parse(localStorage.getItem("hstnlx_cart") || "[]")
-    const variantPrice = getPriceForVariant(selectedSize, selectedColor || undefined)
-
-    const existingIdx = cart.findIndex((i: any) => i.productId === productId && i.size === selectedSize && (!selectedColor || i.color === selectedColor))
-
-    if (existingIdx > -1) {
-      cart[existingIdx].qty = (cart[existingIdx].qty || 0) + quantity
-      cart[existingIdx].price = variantPrice
-    } else {
-      cart.push({
-        productId,
-        seller_id: product.user_id,
-        title: product.title,
-        price: variantPrice,
-        image: product.image_url,
-        size: selectedSize,
-        color: selectedColor,
-        qty: quantity
-      })
+  const addToCart = async () => {
+    // Check size selection only if variants exist
+    if (hasVariants && !selectedSize) {
+      setUiToast("Please select a size")
+      return
+    }
+    if (hasVariants && selectedSizeStock <= 0) {
+      setUiToast("Selected size is out of stock")
+      return
+    }
+    if (!hasVariants && productStock <= 0) {
+      setUiToast("Product is out of stock")
+      return
     }
 
-    localStorage.setItem("hstnlx_cart", JSON.stringify(cart));
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setUiToast("Please login to add to cart")
+      setTimeout(() => router.push("/login"), 1500)
+      return
+    }
+
+    const variantPrice = hasVariants ? getPriceForVariant(selectedSize!, selectedColor || undefined) : product.price
+
+    // Check if already in cart (Supabase)
+    const { data: existingCart } = await supabase
+      .from("cart")
+      .select("id, quantity")
+      .eq("buyer_id", user.id)
+      .eq("product_id", productId)
+      .eq("size", selectedSize || "")
+      .single() as { data: { id: string; quantity: number } | null }
+
+    if (existingCart) {
+      // Update quantity
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("cart") as any)
+        .update({ quantity: existingCart.quantity + quantity })
+        .eq("id", existingCart.id)
+      setUiToast(`Updated quantity to ${existingCart.quantity + quantity}`)
+    } else {
+      // Add new
+      await supabase
+        .from("cart")
+        .insert({
+          buyer_id: user.id,
+          product_id: productId,
+          size: selectedSize || null,
+          color: selectedColor || null,
+          quantity: quantity,
+          price: variantPrice
+        } as any)
+      setUiToast(`Added ${quantity} to cart`)
+    }
+
     window.dispatchEvent(new Event("hstnlx-cart-updated"))
-    alert(`Success: ${quantity} piece(s) of ${product.title} (Size ${selectedSize}) secured in bag.`)
   }
 
-  const buyNow = () => {
-    if (!selectedSize) return alert("Select protocol size.")
-    if (selectedSizeStock <= 0) return alert("Selected size is out of stock.")
-    addToCart(); router.push("/cart")
+  const buyNow = async () => {
+    await addToCart()
+    if (canPurchase) router.push("/cart")
   }
 
   if (loading) return (

@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
 interface ProductCardProps {
@@ -19,9 +20,29 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const router = useRouter()
   const [isWishlisted, setIsWishlisted] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showToast, setShowToast] = useState("")
+
+  // Check initial wishlist state
+  useEffect(() => {
+    const checkWishlist = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data } = await supabase
+        .from("wishlist")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("product_id", product.id)
+        .single()
+
+      setIsWishlisted(!!data)
+    }
+    checkWishlist()
+  }, [product.id])
 
   const displayPrice = product.discount_price || product.price
   const hasDiscount = product.discount_price && product.discount_price < product.price
@@ -47,23 +68,37 @@ export default function ProductCard({ product }: ProductCardProps) {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
+      setShowToast("Login required")
+      setTimeout(() => setShowToast(""), 2000)
       setLoading(false)
+      // Redirect to login after short delay
+      setTimeout(() => router.push("/login"), 1500)
       return
     }
 
     if (isWishlisted) {
-      await supabase
+      const { error } = await supabase
         .from("wishlist")
         .delete()
         .eq("user_id", user.id)
         .eq("product_id", product.id)
+      
+      if (!error) {
+        setIsWishlisted(false)
+        setShowToast("Removed")
+      }
     } else {
-      await supabase
+      const { error } = await supabase
         .from("wishlist")
         .insert({ user_id: user.id, product_id: product.id } as any)
+      
+      if (!error) {
+        setIsWishlisted(true)
+        setShowToast("Wishlisted ❤️")
+      }
     }
     
-    setIsWishlisted(!isWishlisted)
+    setTimeout(() => setShowToast(""), 2000)
     setLoading(false)
   }
 
@@ -104,6 +139,13 @@ export default function ProductCard({ product }: ProductCardProps) {
           {badge && (
             <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full">
               <span className={`text-[10px] font-bold ${badge.color}`}>{badge.text}</span>
+            </div>
+          )}
+
+          {/* Toast Notification */}
+          {showToast && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black text-white px-4 py-2 rounded-full text-xs font-bold z-20 animate-pulse">
+              {showToast}
             </div>
           )}
         </div>
