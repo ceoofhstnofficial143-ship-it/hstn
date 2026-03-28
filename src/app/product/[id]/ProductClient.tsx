@@ -633,7 +633,7 @@ export default function ProductClient() {
       // Update quantity - MUST await!
       const { error: updateError } = await supabase
         .from("carts")
-        .update({ quantity: existingCart.quantity + quantity })
+        .update({ quantity: existingCart.quantity + quantity } as any)
         .eq("id", existingCart.id)
       
       if (updateError) {
