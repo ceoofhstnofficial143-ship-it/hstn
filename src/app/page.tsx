@@ -5,7 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { supabase } from "@/lib/supabase"
 import { rankProducts } from "@/lib/feedRanker"
-import ProductCard from "@/components/ProductCard"
+import ProductCard from "@/components/product/ProductCard"
 import { useRouter, useSearchParams } from "next/navigation"
 import ProductSkeleton from "@/components/ProductSkeleton"
 import DiscoveryFeed from "@/components/DiscoveryFeed"
@@ -763,7 +763,7 @@ export default function Home() {
                       <h2 className="text-sm font-black uppercase tracking-[0.2em]">Featured Selection</h2>
                       <div className="h-px flex-1 bg-gray-100" />
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {featured.map(p => <ProductCard key={p.id} product={p} />)}
                     </div>
                   </section>
@@ -774,13 +774,15 @@ export default function Home() {
                     <h2 className="text-sm font-black uppercase tracking-[0.2em]">{selectedCategory === "ALL" ? "The Archive" : selectedCategory}</h2>
                     <div className="h-px flex-1 bg-gray-100" />
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-12">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {loading ? (
                       [...Array(6)].map((_, i) => (
-                         <div key={i} className="animate-pulse">
-                           <div className="aspect-square bg-gray-100 rounded-xl mb-4"></div>
-                           <div className="h-4 bg-gray-100 rounded w-2/3 mb-2"></div>
-                           <div className="h-4 bg-gray-100 rounded w-1/3"></div>
+                         <div key={i} className="animate-pulse bg-white rounded-xl overflow-hidden">
+                           <div className="aspect-square bg-gray-100"></div>
+                           <div className="p-2.5">
+                             <div className="h-4 bg-gray-100 rounded w-2/3 mb-2"></div>
+                             <div className="h-4 bg-gray-100 rounded w-1/3"></div>
+                           </div>
                          </div>
                       ))
                     ) : filteredProducts.length > 0 ? (
