@@ -62,13 +62,12 @@ export default function ActionBar({ productId, title, onLike, isLiked }: ActionB
       .eq("user_id", user.id)
       .eq("product_id", productId)
       .is("size", null)
-      .single() as { data: { id: string; quantity: number } | null; error: any }
+      .maybeSingle() as { data: { id: string; quantity: number } | null; error: any }
     
     const existing = result.data
-    const queryError = result.error
 
-    if (existing && !queryError) {
-      // Update quantity - MUST await!
+    if (existing) {
+      // Update quantity
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: updateError } = (supabase.from("carts") as any)
         .update({ quantity: existing.quantity + 1 })

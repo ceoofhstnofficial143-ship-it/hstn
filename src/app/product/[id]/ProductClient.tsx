@@ -629,12 +629,12 @@ export default function ProductClient() {
       query = query.is("size", null)
     }
     
-    const result = await query.single() as { data: { id: string; quantity: number } | null; error: any }
+    // Use maybeSingle to avoid error when no rows found
+    const result = await query.maybeSingle() as { data: { id: string; quantity: number } | null; error: any }
     const existingCart = result.data
-    const queryError = result.error
 
-    if (existingCart && !queryError) {
-      // Update quantity - MUST await!
+    if (existingCart) {
+      // Update quantity
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: updateError } = (supabase.from("carts") as any)
         .update({ quantity: existingCart.quantity + quantity })
